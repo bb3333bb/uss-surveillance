@@ -1,0 +1,74 @@
+# generated: 2026-07-09T15:52:00
+# last_updated: 2026-07-09T15:52:00
+# project: uss-surveillance
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; sprint-status surfaces open ones
+
+generated: 2026-07-09T15:52:00
+last_updated: 2026-07-09T18:06:00
+project: uss-surveillance
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  epic-1: in-progress
+  1-1-oidc-authentication-jwt-validation: review
+  1-2-base-3-column-dashboard-layout-themes: review
+  1-3-role-based-access-control-rbac-enforcer: review
+  epic-1-retrospective: optional
+  epic-2: in-progress
+  2-1-polygon-drawing-on-2d-map-view: review
+  2-2-automated-weather-and-wind-assessment: review
+  2-3-fleet-state-suggestion-engine: review
+  2-4-flight-path-grid-generator-geofence-guard: review
+  epic-2-retrospective: optional
+  epic-3: backlog
+  3-1-hub-interlock-takeoff-sequence: backlog
+  3-2-1-hz-telemetry-operator-mutex-lease: backlog
+  3-3-webrtc-video-stream-transcoding: backlog
+  3-4-manual-override-long-press-controls: backlog
+  3-5-automatic-landing-recharging: backlog
+  3-6-safety-alert-hud-indicator: backlog
+  epic-3-retrospective: optional
+  epic-4: backlog
+  4-1-synced-data-archiving: backlog
+  4-2-mission-history-dashboard: backlog
+  4-3-interactive-timeline-scrubber-map-sync: backlog
+  epic-4-retrospective: optional

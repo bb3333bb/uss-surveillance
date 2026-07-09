@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package suggestion;
+
+option go_package = "uss-surveillance/backend/pkg/suggestion";
+
+// SuggestionRequest models the centroid coordinate inputs.
+message SuggestionRequest {
+  double lat = 1;
+  double lng = 2;
+}
+
+// SuggestionResponse returns optimal drone/dock recommendations.
+message SuggestionResponse {
+  string recommended_drone = 1;
+  string recommended_dock = 2;
+  double distance_meters = 3;
+  bool success = 4;
+}
+
+// SuggestionEngine calculates allocations statelessly over gRPC.
+service SuggestionEngine {
+  rpc GetSuggestion(SuggestionRequest) returns (SuggestionResponse);
+}
