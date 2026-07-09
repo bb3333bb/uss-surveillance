@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>USS Surveillance - Color Themes</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1e22;
+            color: #eceff1;
+            margin: 0;
+            padding: 24px;
+        }
+        h1 {
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #90a4ae;
+            margin-bottom: 40px;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+        }
+        .theme-card {
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .theme-header {
+            margin-bottom: 16px;
+        }
+        .theme-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin: 0 0 4px 0;
+        }
+        .theme-register {
+            font-size: 0.85rem;
+            margin: 0;
+        }
+        .chip-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 20px;
+        }
+        .chip {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 16px;
+            font-weight: 500;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        .preview-ui {
+            border-radius: 8px;
+            padding: 16px;
+            font-size: 0.85rem;
+        }
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+        .badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .stat-val {
+            font-weight: bold;
+        }
+        .progress-bar {
+            height: 6px;
+            border-radius: 3px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+        }
+
+        /* --- THEME 1: Cyber Ops --- */
+        /* Style comments for Hex:
+           Primary: #00e676 (Neon Green)
+           Secondary: #2979ff (Vibrant Blue)
+           Background: #0c0f12 (Deep Coal)
+           Surface: #161c24 (Soft Obsidian)
+           Text Primary: #ffffff
+           Text Secondary: #919eab
+        */
+        .theme-cyber {
+            background-color: #0c0f12;
+        }
+        .theme-cyber .theme-title { color: #00e676; }
+        .theme-cyber .theme-register { color: #919eab; }
+        .theme-cyber .preview-ui { background-color: #161c24; color: #ffffff; border: 1px solid rgba(0,230,118,0.2); }
+        .theme-cyber .badge { background-color: rgba(0,230,118,0.15); color: #00e676; }
+        .theme-cyber .stat-label { color: #919eab; }
+        .theme-cyber .stat-val { color: #ffffff; }
+        .theme-cyber .progress-bar { background-color: #0c0f12; }
+        .theme-cyber .progress-fill { background-color: #00e676; width: 78%; }
+        .theme-cyber .chip-primary { background-color: #00e676; color: #0c0f12; }
+        .theme-cyber .chip-secondary { background-color: #2979ff; color: #ffffff; }
+
+        /* --- THEME 2: Midnight Ocean --- */
+        /* Style comments for Hex:
+           Primary: #00b0ff (Ocean Blue)
+           Secondary: #00e5ff (Teal)
+           Background: #0a192f (Deep Navy)
+           Surface: #172a45 (Steel Blue)
+           Text Primary: #e6f1ff
+           Text Secondary: #8892b0
+        */
+        .theme-ocean {
+            background-color: #0a192f;
+        }
+        .theme-ocean .theme-title { color: #00b0ff; }
+        .theme-ocean .theme-register { color: #8892b0; }
+        .theme-ocean .preview-ui { background-color: #172a45; color: #e6f1ff; border: 1px solid rgba(0,176,255,0.2); }
+        .theme-ocean .badge { background-color: rgba(0,229,255,0.15); color: #00e5ff; }
+        .theme-ocean .stat-label { color: #8892b0; }
+        .theme-ocean .stat-val { color: #e6f1ff; }
+        .theme-ocean .progress-bar { background-color: #0a192f; }
+        .theme-ocean .progress-fill { background-color: #00b0ff; width: 78%; }
+        .theme-ocean .chip-primary { background-color: #00b0ff; color: #0a192f; }
+        .theme-ocean .chip-secondary { background-color: #00e5ff; color: #0a192f; }
+
+        /* --- THEME 3: Volcanic Ash --- */
+        /* Style comments for Hex:
+           Primary: #ff9100 (Cyber Orange)
+           Secondary: #ff3d00 (Hazard Red)
+           Background: #121212 (Charcoal Black)
+           Surface: #1e1e1e (Dark Grey)
+           Text Primary: #f5f5f5
+           Text Secondary: #aaaaaa
+        */
+        .theme-ash {
+            background-color: #121212;
+        }
+        .theme-ash .theme-title { color: #ff9100; }
+        .theme-ash .theme-register { color: #aaaaaa; }
+        .theme-ash .preview-ui { background-color: #1e1e1e; color: #f5f5f5; border: 1px solid rgba(255,145,0,0.2); }
+        .theme-ash .badge { background-color: rgba(255,145,0,0.15); color: #ff9100; }
+        .theme-ash .stat-label { color: #aaaaaa; }
+        .theme-ash .stat-val { color: #f5f5f5; }
+        .theme-ash .progress-bar { background-color: #121212; }
+        .theme-ash .progress-fill { background-color: #ff9100; width: 78%; }
+        .theme-ash .chip-primary { background-color: #ff9100; color: #121212; }
+        .theme-ash .chip-secondary { background-color: #ff3d00; color: #ffffff; }
+
+        /* --- THEME 4: Slate Stealth --- */
+        /* Style comments for Hex:
+           Primary: #7986cb (Muted Indigo)
+           Secondary: #4fc3f7 (Light Blue)
+           Background: #1a1a24 (Slate)
+           Surface: #252538 (Dusty Purple/Grey)
+           Text Primary: #ffffff
+           Text Secondary: #b0bec5
+        */
+        .theme-stealth {
+            background-color: #1a1a24;
+        }
+        .theme-stealth .theme-title { color: #8fa0e6; }
+        .theme-stealth .theme-register { color: #b0bec5; }
+        .theme-stealth .preview-ui { background-color: #252538; color: #ffffff; border: 1px solid rgba(121,134,203,0.2); }
+        .theme-stealth .badge { background-color: rgba(79,195,247,0.15); color: #4fc3f7; }
+        .theme-stealth .stat-label { color: #b0bec5; }
+        .theme-stealth .stat-val { color: #ffffff; }
+        .theme-stealth .progress-bar { background-color: #1a1a24; }
+        .theme-stealth .progress-fill { background-color: #7986cb; width: 78%; }
+        .theme-stealth .chip-primary { background-color: #7986cb; color: #1a1a24; }
+        .theme-stealth .chip-secondary { background-color: #4fc3f7; color: #1a1a24; }
+    </style>
+</head>
+<body>
+    <h1>USS Surveillance - Color Themes Spec</h1>
+    <p class="subtitle">Select your preferred Material UI dark mode palette variation</p>
+
+    <div class="container">
+        <!-- THEME 1 -->
+        <div class="theme-card theme-cyber">
+            <div class="theme-header">
+                <p class="theme-title">1. Cyber Ops</p>
+                <p class="theme-register">High contrast tactical green, industrial precision</p>
+            </div>
+            <div class="chip-container">
+                <span class="chip chip-primary">Primary</span>
+                <span class="chip chip-secondary">Secondary</span>
+                <span class="chip">MUI-Base</span>
+            </div>
+            <div class="preview-ui">
+                <div class="preview-header">
+                    <span>Drone-3 (Active)</span>
+                    <span class="badge">Patrolling Grid</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Altitude:</span>
+                    <span class="stat-val">42 meters</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Wind Speed:</span>
+                    <span class="stat-val">4.2 m/s (Safe)</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Battery Charge:</span>
+                    <span class="stat-val">78%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- THEME 2 -->
+        <div class="theme-card theme-ocean">
+            <div class="theme-header">
+                <p class="theme-title">2. Midnight Ocean</p>
+                <p class="theme-register">Calm deep navy and ocean blue, professional trust</p>
+            </div>
+            <div class="chip-container">
+                <span class="chip chip-primary">Primary</span>
+                <span class="chip chip-secondary">Secondary</span>
+                <span class="chip">MUI-Base</span>
+            </div>
+            <div class="preview-ui">
+                <div class="preview-header">
+                    <span>Drone-3 (Active)</span>
+                    <span class="badge">Patrolling Grid</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Altitude:</span>
+                    <span class="stat-val">42 meters</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Wind Speed:</span>
+                    <span class="stat-val">4.2 m/s (Safe)</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Battery Charge:</span>
+                    <span class="stat-val">78%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- THEME 3 -->
+        <div class="theme-card theme-ash">
+            <div class="theme-header">
+                <p class="theme-title">3. Volcanic Ash</p>
+                <p class="theme-register">True carbon black and alert orange, high safety visibility</p>
+            </div>
+            <div class="chip-container">
+                <span class="chip chip-primary">Primary</span>
+                <span class="chip chip-secondary">Secondary</span>
+                <span class="chip">MUI-Base</span>
+            </div>
+            <div class="preview-ui">
+                <div class="preview-header">
+                    <span>Drone-3 (Active)</span>
+                    <span class="badge">Patrolling Grid</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Altitude:</span>
+                    <span class="stat-val">42 meters</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Wind Speed:</span>
+                    <span class="stat-val">4.2 m/s (Safe)</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Battery Charge:</span>
+                    <span class="stat-val">78%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- THEME 4 -->
+        <div class="theme-card theme-stealth">
+            <div class="theme-header">
+                <p class="theme-title">4. Slate Stealth</p>
+                <p class="theme-register">Muted slate grey and calm indigo, subtle elegance</p>
+            </div>
+            <div class="chip-container">
+                <span class="chip chip-primary">Primary</span>
+                <span class="chip chip-secondary">Secondary</span>
+                <span class="chip">MUI-Base</span>
+            </div>
+            <div class="preview-ui">
+                <div class="preview-header">
+                    <span>Drone-3 (Active)</span>
+                    <span class="badge">Patrolling Grid</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Altitude:</span>
+                    <span class="stat-val">42 meters</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Wind Speed:</span>
+                    <span class="stat-val">4.2 m/s (Safe)</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Battery Charge:</span>
+                    <span class="stat-val">78%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

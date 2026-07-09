@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>USS Surveillance - Dashboard Mockup</title>
+    <style>
+        :root {
+            --bg-color: #0a192f;
+            --surface-color: #172a45;
+            --surface-hover: #233554;
+            --primary: #00b0ff;
+            --secondary: #00e5ff;
+            --text-primary: #e6f1ff;
+            --text-secondary: #8892b0;
+            --border-color: rgba(0, 176, 255, 0.15);
+            --danger: #ff3d00;
+            --warning: #ff9100;
+            --success: #00e676;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- HEADER --- */
+        header {
+            height: 60px;
+            background-color: var(--surface-color);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 10;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-icon {
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .logo-text {
+            font-weight: bold;
+            font-size: 1.1rem;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .system-alerts {
+            display: flex;
+            gap: 16px;
+            font-size: 0.85rem;
+        }
+
+        .alert-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background-color: rgba(255, 145, 0, 0.1);
+            color: var(--warning);
+            border: 1px solid rgba(255, 145, 0, 0.2);
+        }
+
+        .alert-item.safe {
+            background-color: rgba(0, 230, 118, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(0, 230, 118, 0.2);
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            color: var(--bg-color);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        /* --- MAIN WORKSPACE --- */
+        .workspace {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* --- LEFT PANEL: Fleet & Hubs --- */
+        .left-panel {
+            width: 280px;
+            background-color: var(--surface-color);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 5;
+        }
+
+        .left-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-color);
+            background-color: rgba(10, 25, 47, 0.3);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            text-align: center;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            background-color: rgba(0, 176, 255, 0.05);
+        }
+
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .hub-card, .history-card {
+            background-color: rgba(10, 25, 47, 0.5);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .hub-card:hover, .history-card:hover {
+            background-color: var(--surface-hover);
+            border-color: var(--secondary);
+        }
+
+        .hub-card.active, .history-card.active {
+            border-color: var(--primary);
+            box-shadow: 0 0 8px rgba(0, 176, 255, 0.2);
+        }
+
+        .hub-name-row, .history-name-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.85rem;
+            margin-bottom: 8px;
+        }
+
+        .hub-status {
+            font-size: 0.75rem;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .hub-status.charging { background-color: rgba(0, 230, 118, 0.15); color: var(--success); }
+        .hub-status.active { background-color: rgba(0, 176, 255, 0.15); color: var(--primary); }
+        .hub-status.offline { background-color: rgba(136, 146, 176, 0.15); color: var(--text-secondary); }
+
+        .drone-subrow, .history-subrow {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
+
+        /* --- CENTER PANEL: Map View --- */
+        .map-container {
+            flex: 1;
+            position: relative;
+            background-color: #0f1c2e;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Mode Banner */
+        .mode-banner {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: var(--surface-color);
+            border: 1px solid var(--primary);
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85rem;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            z-index: 6;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .mode-banner.active {
+            display: flex;
+        }
+
+        .exit-replay-btn {
+            background-color: var(--danger);
+            border: none;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        /* Mock Map Layout */
+        .mock-map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            background-image: 
+                radial-gradient(var(--surface-color) 1px, transparent 1px),
+                linear-gradient(rgba(0,176,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,176,255,0.03) 1px, transparent 1px);
+            background-size: 40px 40px, 20px 20px, 20px 20px;
+            background-position: center;
+            transition: transform 0.5s ease-in-out;
+        }
+
+        .mock-map.view-3d {
+            transform: perspective(600px) rotateX(45deg) translateY(-50px) scale(1.1);
+        }
+
+        /* Draw elements */
+        .hub-marker {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background-color: var(--primary);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            top: 60%;
+            left: 30%;
+            box-shadow: 0 0 10px var(--primary);
+        }
+
+        .hub-label {
+            position: absolute;
+            font-size: 0.75rem;
+            top: 60%;
+            left: 30%;
+            transform: translate(-50%, -22px);
+            background-color: var(--surface-color);
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        .patrol-polygon {
+            position: absolute;
+            width: 240px;
+            height: 180px;
+            border: 2px dashed var(--secondary);
+            background-color: rgba(0, 229, 255, 0.05);
+            top: 25%;
+            left: 40%;
+            border-radius: 12px;
+            clip-path: polygon(0% 20%, 80% 0%, 100% 70%, 20% 100%);
+        }
+
+        .flight-path {
+            position: absolute;
+            width: 240px;
+            height: 180px;
+            border: 2px solid var(--primary);
+            top: 25%;
+            left: 40%;
+            clip-path: polygon(10% 25%, 70% 10%, 90% 65%, 25% 85%, 10% 25%);
+            opacity: 0.7;
+        }
+
+        .drone-marker {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background-color: var(--secondary);
+            border-radius: 50%;
+            top: 40%;
+            left: 60%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 12px var(--secondary);
+            font-size: 0.75rem;
+            font-weight: bold;
+            color: var(--bg-color);
+            transition: all 0.3s ease;
+        }
+
+        .drone-marker.paused {
+            background-color: var(--warning);
+            box-shadow: 0 0 12px var(--warning);
+        }
+
+        .drone-marker.rth {
+            animation: returnHome 4s forwards linear;
+        }
+
+        @keyframes returnHome {
+            0% { top: 40%; left: 60%; }
+            100% { top: 60%; left: 30%; }
+        }
+
+        /* Map Controls */
+        .map-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 6;
+        }
+
+        .map-btn {
+            background-color: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+
+        .map-btn:hover {
+            background-color: var(--surface-hover);
+            border-color: var(--primary);
+        }
+
+        .map-btn.active {
+            background-color: var(--primary);
+            color: var(--bg-color);
+            border-color: var(--primary);
+        }
+
+        /* --- RIGHT PANEL: Mission Control & Telemetry --- */
+        .right-panel {
+            width: 320px;
+            background-color: var(--surface-color);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            z-index: 5;
+        }
+
+        .telemetry-section {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .telemetry-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .telemetry-card {
+            background-color: rgba(10, 25, 47, 0.4);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .tel-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .tel-value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--secondary);
+        }
+
+        /* Video Stream PIP */
+        .video-section {
+            flex: 1;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .video-box {
+            flex: 1;
+            background-color: #000;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0,0,0,0.6);
+            padding: 2px 6px;
+            font-size: 0.7rem;
+            border-radius: 3px;
+            border: 1px solid var(--secondary);
+            color: var(--secondary);
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .video-static {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.7;
+        }
+
+        /* Scanline effect */
+        .scanlines {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.06),
+                rgba(0, 255, 0, 0.02),
+                rgba(0, 0, 255, 0.06)
+            );
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Override Actions & Replay Mode controls */
+        .controls-section {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn-action {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-action:hover {
+            opacity: 0.9;
+        }
+
+        .btn-pause { background-color: var(--warning); color: var(--bg-color); }
+        .btn-rth { background-color: var(--danger); color: #fff; }
+        .btn-land { background-color: #607d8b; color: #fff; }
+
+        /* Replay Mode controls container */
+        .replay-controls {
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            text-align: center;
+        }
+
+        .replay-controls.active {
+            display: flex;
+        }
+
+        .play-btn {
+            background-color: var(--primary);
+            color: var(--bg-color);
+            font-size: 1rem;
+        }
+
+        /* --- BOTTOM REPLAY PANEL --- */
+        .replay-panel {
+            height: 80px;
+            background-color: var(--surface-color);
+            border-top: 1px solid var(--border-color);
+            display: none;
+            align-items: center;
+            padding: 0 24px;
+            gap: 20px;
+            z-index: 8;
+        }
+
+        .replay-panel.active {
+            display: flex;
+        }
+
+        .replay-title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            font-weight: bold;
+            color: var(--primary);
+            white-space: nowrap;
+        }
+
+        .timeline-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .timeline-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(0, 176, 255, 0.2);
+            outline: none;
+        }
+
+        .timeline-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--secondary);
+            cursor: pointer;
+            box-shadow: 0 0 6px var(--secondary);
+        }
+
+        .time-display {
+            font-size: 0.8rem;
+            font-family: monospace;
+            color: var(--text-secondary);
+        }
+
+        /* --- TOAST NOTIFICATIONS --- */
+        .toast {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--surface-color);
+            border: 1px solid var(--primary);
+            color: var(--text-primary);
+            padding: 12px 24px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            display: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header>
+        <div class="logo-section">
+            <span class="logo-icon">📡</span>
+            <span class="logo-text">USS Surveillance</span>
+        </div>
+        <div class="system-alerts" id="headerAlerts">
+            <div class="alert-item safe">
+                <span>🌬️ Wind: 4.2 m/s (Safe)</span>
+            </div>
+            <div class="alert-item safe">
+                <span>☀️ Weather: Clear</span>
+            </div>
+        </div>
+        <div class="user-profile">
+            <span>Sarah (Operator)</span>
+            <div class="user-avatar">S</div>
+        </div>
+    </header>
+
+    <!-- MAIN BODY -->
+    <div class="workspace">
+        
+        <!-- LEFT PANEL: Tabs & List -->
+        <div class="left-panel">
+            <div class="left-tabs">
+                <button class="tab-btn active" id="tabFleetBtn" onclick="switchTab('fleet')">Fleet & Docks</button>
+                <button class="tab-btn" id="tabHistoryBtn" onclick="switchTab('history')">Mission Logs</button>
+            </div>
+            
+            <div class="tab-content" id="tabContent">
+                <!-- Fleet List (Default) -->
+                <div id="fleetList">
+                    <div class="hub-card active" onclick="selectHub('south')">
+                        <div class="hub-name-row">
+                            <span>Dock South (Primary)</span>
+                            <span class="hub-status active">Active</span>
+                        </div>
+                        <div class="drone-subrow">
+                            <span>Drone-3 (Housed)</span>
+                            <span style="color: var(--success)">🔋 78%</span>
+                        </div>
+                    </div>
+
+                    <div class="hub-card" onclick="selectHub('north')">
+                        <div class="hub-name-row">
+                            <span>Dock North</span>
+                            <span class="hub-status charging">Charging</span>
+                        </div>
+                        <div class="drone-subrow">
+                            <span>Drone-1 (Docked)</span>
+                            <span style="color: var(--success)">🔋 92%</span>
+                        </div>
+                    </div>
+
+                    <div class="hub-card" onclick="selectHub('east')">
+                        <div class="hub-name-row">
+                            <span>Dock East</span>
+                            <span class="hub-status offline">Offline</span>
+                        </div>
+                        <div class="drone-subrow">
+                            <span>Drone-2 (Unreachable)</span>
+                            <span style="color: var(--danger)">🔋 --</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History List (Hidden initially) -->
+                <div id="historyList" style="display: none;">
+                    <div class="history-card" onclick="startReplay('Mission #142 (Grid Search)')">
+                        <div class="history-name-row">
+                            <span>Mission #142</span>
+                            <span style="color: var(--success); font-size: 0.75rem;">Done</span>
+                        </div>
+                        <div class="history-subrow">
+                            <span>Drone-3 · Dock South</span>
+                            <span>12 mins</span>
+                        </div>
+                    </div>
+
+                    <div class="history-card" onclick="startReplay('Mission #141 (Perimeter Patrol)')">
+                        <div class="history-name-row">
+                            <span>Mission #141</span>
+                            <span style="color: var(--success); font-size: 0.75rem;">Done</span>
+                        </div>
+                        <div class="history-subrow">
+                            <span>Drone-1 · Dock North</span>
+                            <span>15 mins</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER PANEL: Map -->
+        <div class="map-container">
+            <!-- Mode Banner -->
+            <div class="mode-banner" id="modeBanner">
+                <span id="bannerText">Replay Mode: Mission #142</span>
+                <button class="exit-replay-btn" onclick="exitReplay()">Exit Replay</button>
+            </div>
+
+            <div class="mock-map" id="mapElement">
+                <!-- Location Elements -->
+                <div class="hub-marker"></div>
+                <div class="hub-label">Dock South</div>
+
+                <!-- Mission Paths -->
+                <div class="patrol-polygon"></div>
+                <div class="flight-path"></div>
+
+                <!-- Drone -->
+                <div class="drone-marker" id="droneElement">D3</div>
+            </div>
+
+            <!-- Map Controls -->
+            <div class="map-controls">
+                <button class="map-btn active" id="btn2D" onclick="setMapMode('2D')">2D Map View</button>
+                <button class="map-btn" id="btn3D" onclick="setMapMode('3D')">3D Elevation View</button>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL: Mission control -->
+        <div class="right-panel">
+            <div class="telemetry-section">
+                <div class="panel-header" style="padding: 0 0 10px 0; border: none;" id="panelTitle">Real-Time Telemetry</div>
+                <div class="telemetry-grid">
+                    <div class="telemetry-card">
+                        <div class="tel-label">Altitude</div>
+                        <div class="tel-value" id="valAlt">42m</div>
+                    </div>
+                    <div class="telemetry-card">
+                        <div class="tel-label">Speed</div>
+                        <div class="tel-value" id="valSpeed">8.2 m/s</div>
+                    </div>
+                    <div class="telemetry-card">
+                        <div class="tel-label">Battery</div>
+                        <div class="tel-value" id="valBat" style="color: var(--success)">78%</div>
+                    </div>
+                    <div class="telemetry-card">
+                        <div class="tel-label">Signal</div>
+                        <div class="tel-value" id="valSig">100%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Video -->
+            <div class="video-section">
+                <div class="panel-header" style="padding: 0 0 10px 0; border: none;" id="videoTitle">Live Video Feed</div>
+                <div class="video-box">
+                    <div class="video-overlay" id="videoOverlay">Live Payload Feed</div>
+                    <img src="https://images.unsplash.com/photo-1508847154043-be12a62861c1?q=80&w=300&auto=format&fit=crop" class="video-static" alt="Drone view">
+                    <div class="scanlines"></div>
+                </div>
+            </div>
+
+            <!-- Command buttons (Active Flight Mode) -->
+            <div class="controls-section" id="activeControls">
+                <button class="btn-action btn-pause" onclick="triggerPause()" id="pauseBtn">Pause Mission</button>
+                <button class="btn-action btn-rth" onclick="triggerRTH()">Return to Home (RTH)</button>
+                <button class="btn-action btn-land" onclick="triggerLand()">Emergency Land</button>
+            </div>
+
+            <!-- Replay Playback Buttons (Replay Mode) -->
+            <div class="controls-section" id="replayControls" style="display: none;">
+                <div class="replay-controls active">
+                    <button class="btn-action play-btn" onclick="togglePlay()" id="playBtn">Play Replay</button>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary);">Timeline linked to map path</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTTOM PANEL: Replay timeline -->
+    <div class="replay-panel" id="replayTimeline">
+        <div class="replay-title">🎞️ Mission Replay</div>
+        <div class="timeline-container">
+            <span class="time-display" id="timeElapsed">00:00</span>
+            <input type="range" class="timeline-slider" min="0" max="100" value="0" id="replayScrubber" oninput="scrubTimeline(this.value)">
+            <span class="time-display" id="timeTotal">12:00</span>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast" id="toastNotification">Mission state updated.</div>
+
+    <!-- SCRIPT LOGIC -->
+    <script>
+        let isPaused = false;
+        let isReplayMode = false;
+        let isPlaying = false;
+        let playInterval;
+
+        function showToast(message) {
+            const toast = document.getElementById('toastNotification');
+            toast.textContent = message;
+            toast.style.display = 'block';
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        function switchTab(tab) {
+            const fleetBtn = document.getElementById('tabFleetBtn');
+            const historyBtn = document.getElementById('tabHistoryBtn');
+            const fleetList = document.getElementById('fleetList');
+            const historyList = document.getElementById('historyList');
+
+            if (tab === 'history') {
+                fleetBtn.classList.remove('active');
+                historyBtn.classList.add('active');
+                fleetList.style.display = 'none';
+                historyList.style.display = 'block';
+            } else {
+                fleetBtn.classList.add('active');
+                historyBtn.classList.remove('active');
+                fleetList.style.display = 'block';
+                historyList.style.display = 'none';
+            }
+        }
+
+        function setMapMode(mode) {
+            const map = document.getElementById('mapElement');
+            const btn2D = document.getElementById('btn2D');
+            const btn3D = document.getElementById('btn3D');
+            const altVal = document.getElementById('valAlt');
+
+            if (mode === '3D') {
+                map.classList.add('view-3d');
+                btn2D.classList.remove('active');
+                btn3D.classList.add('active');
+                altVal.textContent = isReplayMode ? '42m AGL' : '42m AGL';
+                showToast("3D Elevation View active - visualizing building clearances.");
+            } else {
+                map.classList.remove('view-3d');
+                btn2D.classList.add('active');
+                btn3D.classList.remove('active');
+                altVal.textContent = '42m';
+                showToast("2D Mapping View active.");
+            }
+        }
+
+        function triggerPause() {
+            const drone = document.getElementById('droneElement');
+            const btn = document.getElementById('pauseBtn');
+            const speedVal = document.getElementById('valSpeed');
+
+            if (!isPaused) {
+                isPaused = true;
+                drone.classList.add('paused');
+                btn.textContent = "Resume Mission";
+                speedVal.textContent = "0.0 m/s";
+                showToast("Mission paused. Drone-3 is hovering in place.");
+            } else {
+                isPaused = false;
+                drone.classList.remove('paused');
+                btn.textContent = "Pause Mission";
+                speedVal.textContent = "8.2 m/s";
+                showToast("Mission resumed. Continuing grid patrol.");
+            }
+        }
+
+        function triggerRTH() {
+            const drone = document.getElementById('droneElement');
+            const speedVal = document.getElementById('valSpeed');
+            
+            drone.classList.add('rth');
+            speedVal.textContent = "12.5 m/s";
+            showToast("RTH Command dispatched. Drone-3 returning to Dock South.");
+            
+            setTimeout(() => {
+                showToast("Drone-3 aligned with Dock South. Initiating automated descent.");
+            }, 4000);
+        }
+
+        function triggerLand() {
+            const speedVal = document.getElementById('valSpeed');
+            const altVal = document.getElementById('valAlt');
+            
+            speedVal.textContent = "0.0 m/s";
+            altVal.textContent = "Landing...";
+            showToast("EMERGENCY LAND triggered. Drone-3 landing vertically at current coordinates.");
+        }
+
+        /* Replay logic */
+        function startReplay(missionName) {
+            isReplayMode = true;
+            isPlaying = false;
+            clearInterval(playInterval);
+            
+            // UI elements switch
+            document.getElementById('modeBanner').classList.add('active');
+            document.getElementById('bannerText').textContent = `Replay Mode: ${missionName}`;
+            document.getElementById('replayTimeline').classList.add('active');
+            document.getElementById('activeControls').style.display = 'none';
+            document.getElementById('replayControls').style.display = 'block';
+            
+            // Telemetry Panel labels update
+            document.getElementById('panelTitle').textContent = "Historical Telemetry";
+            document.getElementById('videoTitle').textContent = "Recorded Video Payload";
+            document.getElementById('videoOverlay').textContent = "Recorded Video";
+            document.getElementById('headerAlerts').style.visibility = 'hidden';
+            
+            // Set initial scrubber value and move drone to start
+            document.getElementById('replayScrubber').value = 0;
+            scrubTimeline(0);
+            
+            showToast(`Loading archive for ${missionName}. Replay dashboard initialized.`);
+        }
+
+        function exitReplay() {
+            isReplayMode = false;
+            isPlaying = false;
+            clearInterval(playInterval);
+            
+            document.getElementById('modeBanner').classList.remove('active');
+            document.getElementById('replayTimeline').classList.remove('active');
+            document.getElementById('activeControls').style.display = 'flex';
+            document.getElementById('replayControls').style.display = 'none';
+            
+            document.getElementById('panelTitle').textContent = "Real-Time Telemetry";
+            document.getElementById('videoTitle').textContent = "Live Video Feed";
+            document.getElementById('videoOverlay').textContent = "Live Payload Feed";
+            document.getElementById('headerAlerts').style.visibility = 'visible';
+            
+            // Restore active state values
+            document.getElementById('valSpeed').textContent = isPaused ? "0.0 m/s" : "8.2 m/s";
+            document.getElementById('valAlt').textContent = "42m";
+            document.getElementById('valBat').textContent = "78%";
+            
+            // Restore drone positioning
+            const drone = document.getElementById('droneElement');
+            drone.style.left = '60%';
+            drone.style.top = '40%';
+            drone.classList.remove('rth');
+            
+            showToast("Returned to Active Flight dashboard.");
+        }
+
+        function togglePlay() {
+            const playBtn = document.getElementById('playBtn');
+            const scrubber = document.getElementById('replayScrubber');
+            
+            if (!isPlaying) {
+                isPlaying = true;
+                playBtn.textContent = "Pause Replay";
+                playInterval = setInterval(() => {
+                    let val = parseInt(scrubber.value);
+                    if (val >= 100) {
+                        clearInterval(playInterval);
+                        isPlaying = false;
+                        playBtn.textContent = "Play Replay";
+                        showToast("Replay completed.");
+                    } else {
+                        val += 1;
+                        scrubber.value = val;
+                        scrubTimeline(val);
+                    }
+                }, 150);
+            } else {
+                isPlaying = false;
+                playBtn.textContent = "Play Replay";
+                clearInterval(playInterval);
+            }
+        }
+
+        function scrubTimeline(value) {
+            const drone = document.getElementById('droneElement');
+            const altVal = document.getElementById('valAlt');
+            const speedVal = document.getElementById('valSpeed');
+            const batVal = document.getElementById('valBat');
+            
+            // Move drone marker based on scrubber percent along simulated route
+            drone.style.left = (30 + (value * 0.4)) + '%';
+            drone.style.top = (60 - (value * 0.35)) + '%';
+            
+            // Update time display
+            const totalSeconds = 12 * 60; // 12 mins
+            const elapsed = Math.floor((value / 100) * totalSeconds);
+            const elapsedMin = Math.floor(elapsed / 60);
+            const elapsedSec = Math.floor(elapsed % 60).toString().padStart(2, '0');
+            document.getElementById('timeElapsed').textContent = `${elapsedMin}:${elapsedSec}`;
+            
+            // Update telemetry data dynamically to match scrubbing
+            if (isReplayMode) {
+                altVal.textContent = Math.floor(40 + Math.sin(value / 5) * 5) + 'm';
+                speedVal.textContent = (8.0 + Math.cos(value / 10) * 1.5).toFixed(1) + ' m/s';
+                batVal.textContent = Math.floor(78 - (value * 0.45)) + '%';
+                
+                // Color battery warning dynamically
+                let bat = 78 - (value * 0.45);
+                if (bat < 30) {
+                    batVal.style.color = 'var(--danger)';
+                } else if (bat < 50) {
+                    batVal.style.color = 'var(--warning)';
+                } else {
+                    batVal.style.color = 'var(--success)';
+                }
+            }
+        }
+
+        function selectHub(hubName) {
+            showToast(`Selected Dock: ${hubName.toUpperCase()}. Loading telemetry channels...`);
+        }
+    </script>
+</body>
+</html>
