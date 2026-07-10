@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   ThemeProvider, CssBaseline, Button, Box, Typography, Paper, Avatar, 
-  Tabs, Tab, Grid, AppBar, Toolbar, Chip, IconButton 
+  Tabs, Tab, Grid, AppBar, Toolbar, Chip, IconButton,
+  Dialog, DialogTitle, DialogContent, DialogActions, Stepper, Step, StepLabel,
+  LinearProgress, Slider
 } from '@mui/material';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
@@ -9,16 +11,19 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import PauseIcon from '@mui/icons-material/Pause';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import HomeIcon from '@mui/icons-material/Home';
 import LayersIcon from '@mui/icons-material/Layers';
 import GestureIcon from '@mui/icons-material/Gesture';
 import DeleteIcon from '@mui/icons-material/Delete';
 import WarningIcon from '@mui/icons-material/Warning';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 import L from 'leaflet';
 import axios from 'axios';
 import { useAuth } from './context/AuthContext.jsx';
 import theme from './theme.js';
+import VideoPlayer from './components/VideoPlayer.jsx';
 
 function App() {
   const { isAuthenticated, user, role, login, logout, loading } = useAuth();
@@ -26,10 +31,12 @@ function App() {
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
 
-  // Map & drawing state
+  // Map & drawing refs
   const mapRef = useRef(null);
   const leafletMapRef = useRef(null);
   const flightPathLayerRef = useRef(null);
+  const droneMarkerRef = useRef(null);
+  const wsRef = useRef(null);
 
   const [isDrawing, setIsDrawing] = useState(false);
   const [polygonPoints, setPolygonPoints] = useState([]);
@@ -38,6 +45,76 @@ function App() {
   const [flightPath, setFlightPath] = useState(null);
   const [plannerSafe, setPlannerSafe] = useState(null);
   const [plannerMessage, setPlannerMessage] = useState(null);
+
+  // Telemetry & Control mutex leases
+  const [telemetry, setTelemetry] = useState(null);
+  const [leaseholder, setLeaseholder] = useState("");
+  const [hubDoors, setHubDoors] = useState("closed");
+
+  // Historical Replay Mode states
+  const [missions, setMissions] = useState([]);
+  const [replayMode, setReplayMode] = useState(false);
+  const [activeReplay, setActiveReplay] = useState(null);
+  const [replayIndex, setReplayIndex] = useState(0);
+  const [isReplayPlaying, setIsReplayPlaying] = useState(false);
+
+  // Takeoff / Launch states
+  const [showLaunchModal, setShowLaunchModal] = useState(false);
+  const [launching, setLaunching] = useState(false);
+  const [launchStep, setLaunchStep] = useState(0);
+  const [launchMessage, setLaunchMessage] = useState("");
+
+  // Long-press manual override controls (AD-4: requires 1.5s hold)
+  const [activePress, setActivePress] = useState(null);
+  const [pressProgress, setPressProgress] = useState(0);
+  const pressTimerRef = useRef(null);
+  const pressIntervalRef = useRef(null);
+
+  const dispatchOverrideCommand = async (cmd) => {
+    try {
+      const response = await axios.post('http://localhost:8080/api/operator/command', {
+        command: cmd
+      });
+      alert(response.data.message);
+    } catch (err) {
+      const errMsg = err.response?.data?.message || `Failed to dispatch ${cmd} override command.`;
+      alert(errMsg);
+    }
+  };
+
+  const startHoldGesture = (type) => {
+    setActivePress(type);
+    setPressProgress(0);
+
+    const startTime = Date.now();
+    const duration = 1500;
+
+    pressIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min((elapsed / duration) * 100, 100);
+      setPressProgress(Math.floor(progress));
+    }, 30);
+
+    pressTimerRef.current = setTimeout(() => {
+      clearInterval(pressIntervalRef.current);
+      setActivePress(null);
+      setPressProgress(0);
+      dispatchOverrideCommand(type);
+    }, duration);
+  };
+
+  const cancelHoldGesture = () => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+    }
+    if (pressIntervalRef.current) {
+      clearInterval(pressIntervalRef.current);
+      pressIntervalRef.current = null;
+    }
+    setActivePress(null);
+    setPressProgress(0);
+  };
 
   // Mutable drawing layers tracking (using refs to bypass React re-renders during drag/draw)
   const drawStateRef = useRef({
@@ -53,6 +130,152 @@ function App() {
   useEffect(() => {
     drawStateRef.current.isDrawing = isDrawing;
   }, [isDrawing]);
+
+  // Telemetry WebSocket lifecycle connection
+  useEffect(() => {
+    if (!isAuthenticated) {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      return;
+    }
+
+    const token = sessionStorage.getItem('jwt');
+    const ws = new WebSocket(`ws://localhost:8080/api/operator/telemetry?token=${token}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("Telemetry WebSocket connection opened.");
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        setTelemetry(data);
+        if (data.leaseholder) {
+          setLeaseholder(data.leaseholder);
+        } else {
+          setLeaseholder("");
+        }
+        if (data.hub_doors) {
+          setHubDoors(data.hub_doors);
+        }
+      } catch (err) {
+        console.error("Failed to parse telemetry event payload:", err);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log("Telemetry WebSocket connection closed.");
+    };
+
+    // Client heartbeat watch interval (AD-5: Sends client ping packets every 3s)
+    const heartbeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping" }));
+      }
+    }, 3000);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      ws.close();
+      wsRef.current = null;
+    };
+  }, [isAuthenticated]);
+
+  // Render active or historical drone positions dynamically on Leaflet map
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+
+    if (droneMarkerRef.current) {
+      map.removeLayer(droneMarkerRef.current);
+      droneMarkerRef.current = null;
+    }
+
+    if (!replayMode && telemetry && telemetry.is_flying) {
+      const marker = L.circleMarker([telemetry.lat, telemetry.lng], {
+        radius: 8,
+        color: '#ff9100', // Neon Orange active drone
+        fillColor: '#0a192f',
+        fillOpacity: 1,
+        weight: 3
+      }).bindTooltip("Drone-01 (M300 RTK) - ACTIVE").addTo(map);
+
+      droneMarkerRef.current = marker;
+    } else if (replayMode && activeReplay && activeReplay.telemetry && activeReplay.telemetry.length > replayIndex) {
+      const pt = activeReplay.telemetry[replayIndex];
+      const marker = L.circleMarker([pt.lat, pt.lng], {
+        radius: 8,
+        color: '#00e5ff', // Neon Cyan historical replay drone
+        fillColor: '#0a192f',
+        fillOpacity: 1,
+        weight: 3
+      }).bindTooltip(`Drone-01 (Replay) - Point ${replayIndex}`).addTo(map);
+
+      droneMarkerRef.current = marker;
+    }
+  }, [telemetry, replayMode, activeReplay, replayIndex]);
+
+  // Fetch completed missions when the History tab (tab index 1) is active
+  const fetchMissions = async () => {
+    try {
+      const token = sessionStorage.getItem('jwt');
+      const res = await fetch('http://localhost:8080/api/operator/missions', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMissions(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch historical missions:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (tabVal === 1 && isAuthenticated) {
+      fetchMissions();
+    }
+  }, [tabVal, isAuthenticated]);
+
+  // Map historical replay coordinates to map flightPath line layer
+  useEffect(() => {
+    if (replayMode && activeReplay) {
+      const historicalPath = activeReplay.telemetry.map(pt => ({ lat: pt.lat, lng: pt.lng }));
+      setFlightPath(historicalPath);
+    } else {
+      setFlightPath(null);
+    }
+  }, [replayMode, activeReplay]);
+
+  // Reset playback parameters on replay target changes
+  useEffect(() => {
+    setReplayIndex(0);
+    setIsReplayPlaying(false);
+  }, [activeReplay, replayMode]);
+
+  // Historical replay playback timer ticker (Task 4)
+  useEffect(() => {
+    if (!replayMode || !isReplayPlaying || !activeReplay) {
+      return;
+    }
+    const maxLen = activeReplay.telemetry ? activeReplay.telemetry.length : 0;
+    if (maxLen <= 1) return;
+
+    const interval = setInterval(() => {
+      setReplayIndex((prev) => {
+        if (prev >= maxLen - 1) {
+          setIsReplayPlaying(false);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [replayMode, isReplayPlaying, activeReplay]);
 
   // Query Planner Engine for path sweep grid
   const fetchFlightPlan = async (vertices) => {
@@ -94,13 +317,52 @@ function App() {
       });
       setWeatherInfo(response.data);
       
-      // If weather conditions are safe, fetch allocations & flight grid plans
       if (response.data.safe) {
         fetchSuggestion({ lat, lng });
         fetchFlightPlan(vertices);
       }
     } catch (err) {
       console.error("Failed to query weather alerts:", err);
+    }
+  };
+
+  // Dispatch launch command over interlocks
+  const triggerDroneLaunch = async () => {
+    setShowLaunchModal(false);
+    setLaunching(true);
+    setLaunchStep(0);
+    setLaunchMessage("Initiating automated launch protocol...");
+
+    const t1 = setTimeout(() => {
+      setLaunchStep(1);
+      setLaunchMessage("Commanding Drone Hub cover doors to open...");
+    }, 600);
+
+    const t2 = setTimeout(() => {
+      setLaunchStep(2);
+      setLaunchMessage("Doors open confirmed. Verifying landing gear interlocks...");
+    }, 1500);
+
+    const t3 = setTimeout(() => {
+      setLaunchStep(3);
+      setLaunchMessage("Ignition sequence started. Hovering takeoff...");
+    }, 2400);
+
+    try {
+      const response = await axios.post('http://localhost:8080/api/operator/launch');
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      setLaunchStep(4);
+      setLaunchMessage(response.data.message);
+    } catch (err) {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      setLaunching(false);
+      setLaunchStep(0);
+      const errMsg = err.response?.data?.message || "Launch sequence failed due to mechanical interlock timeout.";
+      alert(errMsg);
     }
   };
 
@@ -122,6 +384,10 @@ function App() {
 
     leafletMapRef.current = map;
 
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+
     // Setup drawing listeners
     const handleMapClick = (e) => {
       const state = drawStateRef.current;
@@ -131,7 +397,6 @@ function App() {
       const vertex = [latlng.lat, latlng.lng];
       state.vertices.push(vertex);
 
-      // Create circle marker for vertex
       const isFirst = state.vertices.length === 1;
       const marker = L.circleMarker(latlng, {
         radius: isFirst ? 8 : 6,
@@ -312,6 +577,10 @@ function App() {
       map.removeLayer(flightPathLayerRef.current);
       flightPathLayerRef.current = null;
     }
+    if (droneMarkerRef.current) {
+      map.removeLayer(droneMarkerRef.current);
+      droneMarkerRef.current = null;
+    }
     state.vertices = [];
     setPolygonPoints([]);
     setWeatherInfo(null);
@@ -319,6 +588,9 @@ function App() {
     setFlightPath(null);
     setPlannerSafe(null);
     setPlannerMessage(null);
+    setLaunching(false);
+    setLaunchStep(0);
+    setTelemetry(null);
   };
 
   if (loading) {
@@ -331,6 +603,9 @@ function App() {
       </ThemeProvider>
     );
   }
+
+  // Lock status variables for exclusive lease warnings
+  const isLeaseLocked = leaseholder && leaseholder !== user;
 
   return (
     <ThemeProvider theme={theme}>
@@ -398,6 +673,16 @@ function App() {
               </Box>
 
               <Box display="flex" alignItems="center">
+                {/* Control lease notification banner */}
+                {leaseholder && (
+                  <Chip 
+                    label={isLeaseLocked ? `MUTEX LOCKED: ${leaseholder}` : "MUTEX LEASE: Active (You)"}
+                    color={isLeaseLocked ? "warning" : "info"}
+                    variant="outlined"
+                    sx={{ mr: 2, fontSize: '0.7rem', fontWeight: 600 }}
+                  />
+                )}
+
                 <Box sx={{ textAlign: 'right', mr: 2 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.primary' }}>
                     {user}
@@ -449,8 +734,39 @@ function App() {
                     </Typography>
                     <Paper sx={{ p: 1.5, mb: 2, border: '1px solid #233554', bgcolor: '#0a192f' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>Dock Alpha</Typography>
-                      <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>● Online (Doors Closed)</Typography>
-                      <Typography variant="caption" color="textSecondary">Temp: 24.5°C | Charging Contact: Active</Typography>
+                      <Typography variant="caption" color={hubDoors === 'recharging' ? "info.main" : "success.main"} sx={{ display: 'block', fontWeight: 600 }}>
+                        ● Online ({
+                          hubDoors === 'recharging' ? 'Closed & Recharging' :
+                          hubDoors === 'opening' ? 'Cover Opening...' :
+                          hubDoors === 'open' ? 'Cover Open' :
+                          hubDoors === 'closing' ? 'Cover Closing...' : 'Doors Closed'
+                        })
+                      </Typography>
+                      
+                      {hubDoors === 'recharging' ? (
+                        <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box sx={{ width: '100%' }}>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={telemetry ? telemetry.battery : 92} 
+                              sx={{ 
+                                height: 6, 
+                                borderRadius: 3, 
+                                bgcolor: 'rgba(0, 229, 255, 0.1)', 
+                                '& .MuiLinearProgress-bar': {
+                                  bgcolor: '#00e5ff',
+                                  animation: 'pulse 1.2s infinite'
+                                } 
+                              }} 
+                            />
+                          </Box>
+                          <Typography variant="caption" sx={{ color: '#00e5ff', fontFamily: 'monospace', fontWeight: 700 }}>
+                            ⚡{telemetry ? telemetry.battery.toFixed(0) : "92"}%
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography variant="caption" color="textSecondary">Temp: 24.5°C | Charging Contact: Active</Typography>
+                      )}
                     </Paper>
 
                     <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1.5, fontWeight: 600 }}>
@@ -458,8 +774,8 @@ function App() {
                     </Typography>
                     <Paper sx={{ p: 1.5, mb: 2, border: '1px solid #233554', bgcolor: '#0a192f' }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>Drone-01 (M300 RTK)</Typography>
-                      <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>● Docked</Typography>
-                      <Typography variant="caption" color="textSecondary">Battery: 92% | GPS: 3D Fix</Typography>
+                      <Typography variant="caption" color="success.main" sx={{ display: 'block' }}>● {telemetry && telemetry.is_flying ? "Flying" : "Docked"}</Typography>
+                      <Typography variant="caption" color="textSecondary">Battery: {telemetry ? telemetry.battery.toFixed(0) : "92"}% | GPS: 3D Fix</Typography>
                     </Paper>
 
                     {polygonPoints.length > 0 && (
@@ -488,7 +804,7 @@ function App() {
                         <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1.5, fontWeight: 600 }}>
                           OPTIMAL ALLOCATION
                         </Typography>
-                        <Paper sx={{ p: 1.5, border: '1px solid #00e5ff', bgcolor: '#061325' }}>
+                        <Paper sx={{ p: 1.5, border: '1px solid #00e5ff', bgcolor: '#061325', mb: 2 }}>
                           <Typography variant="body2" sx={{ fontWeight: 600, color: '#00e5ff' }}>
                             {suggestion.recommended_drone}
                           </Typography>
@@ -498,6 +814,26 @@ function App() {
                           <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
                             Distance to Centroid: {suggestion.distance_meters.toFixed(1)} m
                           </Typography>
+
+                          {/* Confirm Mission Action Trigger */}
+                          {plannerSafe && role !== 'viewer' && !isLeaseLocked && !telemetry?.is_flying && (
+                            <Button 
+                              fullWidth
+                              variant="contained"
+                              color="success"
+                              startIcon={<FlightTakeoffIcon />}
+                              onClick={() => setShowLaunchModal(true)}
+                              sx={{ mt: 2, fontWeight: 600, py: 1 }}
+                            >
+                              Confirm Mission
+                            </Button>
+                          )}
+
+                          {isLeaseLocked && (
+                            <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 2, fontWeight: 600, textAlign: 'center' }}>
+                              ⚠️ Control locked by leaseholder: {leaseholder}
+                            </Typography>
+                          )}
                         </Paper>
                       </>
                     )}
@@ -507,9 +843,72 @@ function App() {
                     <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1.5, fontWeight: 600 }}>
                       COMPLETED MISSIONS
                     </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      No logs found. Run a mission to generate replay data.
-                    </Typography>
+                    {missions.length === 0 ? (
+                      <Typography variant="body2" color="textSecondary">
+                        No logs found. Run a mission to generate replay data.
+                      </Typography>
+                    ) : (
+                      missions.map((mission) => {
+                        const m = Math.floor(mission.duration_sec / 60);
+                        const s = Math.floor(mission.duration_sec % 60);
+                        const durationStr = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                        const dateStr = new Date(mission.start_time).toLocaleString();
+                        const isReplayingThis = replayMode && activeReplay?.id === mission.id;
+
+                        return (
+                          <Paper 
+                            key={mission.id} 
+                            sx={{ 
+                              p: 1.5, 
+                              mb: 2, 
+                              border: isReplayingThis ? '1.5px solid #00e5ff' : '1px solid #233554', 
+                              bgcolor: '#0a192f',
+                              transition: 'all 0.3s'
+                            }}
+                          >
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: isReplayingThis ? '#00e5ff' : 'text.primary' }}>
+                              {mission.id}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
+                              Date: {dateStr}
+                            </Typography>
+                            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1.5 }}>
+                              Duration: {durationStr} | Points: {mission.telemetry ? mission.telemetry.length : 0}
+                            </Typography>
+                            
+                            {isReplayingThis ? (
+                              <Button 
+                                fullWidth
+                                size="small"
+                                variant="contained"
+                                color="error"
+                                onClick={() => {
+                                  setReplayMode(false);
+                                  setActiveReplay(null);
+                                }}
+                                sx={{ textTransform: 'none' }}
+                              >
+                                Stop Replay
+                              </Button>
+                            ) : (
+                              <Button 
+                                fullWidth
+                                size="small"
+                                variant="outlined"
+                                color="info"
+                                onClick={() => {
+                                  setReplayMode(true);
+                                  setActiveReplay(mission);
+                                }}
+                                sx={{ textTransform: 'none', borderColor: '#00e5ff', color: '#00e5ff', '&:hover': { borderColor: '#00b0ff' } }}
+                              >
+                                View Replay
+                              </Button>
+                            )}
+                          </Paper>
+                        );
+                      })
+                    )}
                   </Box>
                 )}
               </Box>
@@ -540,7 +939,7 @@ function App() {
                 
                 <Box display="flex" gap={1}>
                   {/* Drawing Control Controls (Only for non-viewer roles) */}
-                  {role !== 'viewer' && (
+                  {role !== 'viewer' && !isLeaseLocked && !telemetry?.is_flying && (
                     <>
                       {polygonPoints.length === 0 ? (
                         <Button 
@@ -568,7 +967,7 @@ function App() {
                     </>
                   )}
 
-                  {role !== 'viewer' && (
+                  {role !== 'viewer' && !isLeaseLocked && (
                     <Button variant="outlined" size="small" color="primary" startIcon={<LayersIcon />} sx={{ textTransform: 'none' }}>
                       Toggle 3D View
                     </Button>
@@ -577,8 +976,19 @@ function App() {
               </Box>
 
               {/* Leaflet Map DOM Canvas */}
-              <Box flexGrow={1} position="relative" sx={{ width: '100%', height: '100%' }}>
-                <div ref={mapRef} style={{ width: '100%', height: '100%', outline: 'none' }} />
+              <Box 
+                flexGrow={1} 
+                position="relative" 
+                sx={{ 
+                  width: '100%', 
+                  height: '100%',
+                  minHeight: 0,
+                  border: telemetry?.alerts?.length > 0 ? '2px solid #ff3d00' : 'none',
+                  boxShadow: telemetry?.alerts?.length > 0 ? '0 0 15px rgba(255, 61, 0, 0.4)' : 'none',
+                  transition: 'all 0.3s'
+                }}
+              >
+                <div ref={mapRef} style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, outline: 'none' }} />
                 
                 {/* Visual state indicator overlay */}
                 {isDrawing && (
@@ -600,6 +1010,44 @@ function App() {
                     <Typography variant="caption" sx={{ color: '#00e5ff', fontWeight: 600 }}>
                       [Drawing Active] Click map to add vertices. Click first vertex to close path.
                     </Typography>
+                  </Box>
+                )}
+
+                {/* Historical Replay Mode Banner Overlay */}
+                {replayMode && (
+                  <Box 
+                    position="absolute" 
+                    top={12} 
+                    left="50%" 
+                    sx={{ 
+                      transform: 'translateX(-50%)', 
+                      bgcolor: 'rgba(10, 25, 47, 0.95)', 
+                      border: '1.5px solid #00e5ff', 
+                      boxShadow: '0 0 15px rgba(0, 229, 255, 0.4)',
+                      borderRadius: 1, 
+                      px: 2, 
+                      py: 1, 
+                      zIndex: 1000, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 2
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ color: '#00e5ff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <span>⚠️</span> VIEWING HISTORICAL REPLAY: {activeReplay?.id}
+                    </Typography>
+                    <Button 
+                      variant="contained" 
+                      size="small" 
+                      color="error" 
+                      onClick={() => {
+                        setReplayMode(false);
+                        setActiveReplay(null);
+                      }}
+                      sx={{ textTransform: 'none', height: 28 }}
+                    >
+                      Exit Replay
+                    </Button>
                   </Box>
                 )}
 
@@ -656,6 +1104,74 @@ function App() {
                     </Typography>
                   </Box>
                 )}
+
+                {/* Historical Replay Bottom Scrubber & Playback Controls (Task 1 & 4) */}
+                {replayMode && activeReplay && activeReplay.telemetry && (
+                  <Box 
+                    position="absolute" 
+                    bottom={20} 
+                    left="50%" 
+                    sx={{ 
+                      transform: 'translateX(-50%)', 
+                      width: '85%', 
+                      bgcolor: 'rgba(10, 25, 47, 0.95)', 
+                      border: '1.5px solid #233554', 
+                      borderRadius: 2, 
+                      px: 3, 
+                      py: 1.5, 
+                      zIndex: 1000, 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 2,
+                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+                    }}
+                  >
+                    <IconButton 
+                      onClick={() => setIsReplayPlaying(!isReplayPlaying)} 
+                      color="primary"
+                      sx={{ bgcolor: 'rgba(0, 229, 255, 0.1)', '&:hover': { bgcolor: 'rgba(0, 229, 255, 0.2)' } }}
+                    >
+                      {isReplayPlaying ? <PauseIcon sx={{ color: '#00e5ff' }} /> : <PlayArrowIcon sx={{ color: '#00e5ff' }} />}
+                    </IconButton>
+
+                    <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+                          Timeline Playout
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#00e5ff', fontFamily: 'monospace', fontWeight: 700 }}>
+                          Point {replayIndex + 1} / {activeReplay.telemetry.length}
+                        </Typography>
+                      </Box>
+                      <Slider 
+                        value={replayIndex} 
+                        min={0} 
+                        max={activeReplay.telemetry.length - 1} 
+                        onChange={(e, val) => setReplayIndex(val)} 
+                        sx={{ 
+                          color: '#00e5ff', 
+                          height: 6,
+                          '& .MuiSlider-thumb': {
+                            width: 14,
+                            height: 14,
+                            backgroundColor: '#0a192f',
+                            border: '2px solid #00e5ff',
+                            '&:focus, &:hover, &.Mui-active, &.Mui-focusVisible': {
+                              boxShadow: 'inherit',
+                            },
+                          },
+                          '& .MuiSlider-track': {
+                            border: 'none',
+                          },
+                          '& .MuiSlider-rail': {
+                            opacity: 0.28,
+                            backgroundColor: '#233554',
+                          },
+                        }} 
+                      />
+                    </Box>
+                  </Box>
+                )}
               </Box>
             </Box>
 
@@ -693,21 +1209,14 @@ function App() {
                 </Typography>
               </Box>
               <Box p={2}>
-                <Paper 
-                  sx={{ 
-                    height: 200, 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    justifyContent: 'center', 
-                    alignItems: 'center', 
-                    bgcolor: '#0a192f',
-                    border: '1px dashed #233554',
-                    position: 'relative'
-                  }}
-                >
-                  <VideocamIcon sx={{ fontSize: 40, color: 'text.secondary', mb: 1 }} />
-                  <Typography variant="caption" color="textSecondary">WebRTC Stream Playout Idle</Typography>
-                </Paper>
+                <VideoPlayer 
+                  isFlying={replayMode || telemetry?.is_flying} 
+                  telemetry={replayMode && activeReplay && activeReplay.telemetry ? activeReplay.telemetry[replayIndex] : telemetry} 
+                  alerts={replayMode ? [] : telemetry?.alerts} 
+                  replayMode={replayMode}
+                  replayIndex={replayIndex}
+                  totalPoints={activeReplay?.telemetry?.length || 0}
+                />
               </Box>
 
               <Box p={2} sx={{ borderTop: '1px solid #233554' }}>
@@ -718,7 +1227,9 @@ function App() {
                   <Grid item xs={6}>
                     <Paper p={1} sx={{ p: 1, bgcolor: '#0a192f', border: '1px solid #233554' }}>
                       <Typography variant="caption" color="textSecondary">Altitude</Typography>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>0.0 m</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                        {telemetry ? `${telemetry.altitude.toFixed(1)} m` : "0.0 m"}
+                      </Typography>
                     </Paper>
                   </Grid>
                   <Grid item xs={6}>
@@ -737,14 +1248,16 @@ function App() {
                   <Grid item xs={6}>
                     <Paper p={1} sx={{ p: 1, bgcolor: '#0a192f', border: '1px solid #233554' }}>
                       <Typography variant="caption" color="textSecondary">Battery</Typography>
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>92%</Typography>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
+                        {telemetry ? `${telemetry.battery.toFixed(0)}%` : "92%"}
+                      </Typography>
                     </Paper>
                   </Grid>
                   <Grid item xs={6}>
                     <Paper p={1} sx={{ p: 1, bgcolor: '#0a192f', border: '1px solid #233554' }}>
-                      <Typography variant="caption" color="textSecondary">Ambient Temp</Typography>
+                      <Typography variant="caption" color="textSecondary">Speed</Typography>
                       <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                        {weatherInfo ? `${weatherInfo.temp.toFixed(1)} °C` : '31.2 °C'}
+                        {telemetry ? `${telemetry.speed.toFixed(1)} m/s` : "0.0 m/s"}
                       </Typography>
                     </Paper>
                   </Grid>
@@ -762,10 +1275,23 @@ function App() {
                       variant="contained" 
                       color="warning" 
                       startIcon={<PauseIcon />}
-                      disabled={role === 'viewer' || (weatherInfo && !weatherInfo.safe) || (plannerSafe === false)}
-                      sx={{ textTransform: 'none', py: 1.2 }}
+                      disabled={role === 'viewer' || (weatherInfo && !weatherInfo.safe) || (plannerSafe === false) || isLeaseLocked}
+                      onMouseDown={() => startHoldGesture("pause")}
+                      onMouseUp={cancelHoldGesture}
+                      onMouseLeave={cancelHoldGesture}
+                      onTouchStart={() => startHoldGesture("pause")}
+                      onTouchEnd={cancelHoldGesture}
+                      sx={{ textTransform: 'none', py: 1.2, position: 'relative', overflow: 'hidden' }}
                     >
-                      Pause Flight
+                      {activePress === 'pause' ? `Hold Pause... ${pressProgress}%` : "Pause Flight"}
+                      {activePress === 'pause' && (
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={pressProgress} 
+                          color="inherit" 
+                          sx={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 4, opacity: 0.8 }} 
+                        />
+                      )}
                     </Button>
                   </Grid>
                   <Grid item xs={12}>
@@ -774,10 +1300,23 @@ function App() {
                       variant="contained" 
                       color="error" 
                       startIcon={<HomeIcon />}
-                      disabled={role === 'viewer' || (weatherInfo && !weatherInfo.safe) || (plannerSafe === false)}
-                      sx={{ textTransform: 'none', py: 1.2 }}
+                      disabled={role === 'viewer' || (weatherInfo && !weatherInfo.safe) || (plannerSafe === false) || isLeaseLocked}
+                      onMouseDown={() => startHoldGesture("rth")}
+                      onMouseUp={cancelHoldGesture}
+                      onMouseLeave={cancelHoldGesture}
+                      onTouchStart={() => startHoldGesture("rth")}
+                      onTouchEnd={cancelHoldGesture}
+                      sx={{ textTransform: 'none', py: 1.2, position: 'relative', overflow: 'hidden' }}
                     >
-                      Return-To-Home (RTH)
+                      {activePress === 'rth' ? `Hold RTH... ${pressProgress}%` : "Return-To-Home (RTH)"}
+                      {activePress === 'rth' && (
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={pressProgress} 
+                          color="inherit" 
+                          sx={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: 4, opacity: 0.8 }} 
+                        />
+                      )}
                     </Button>
                   </Grid>
                 </Grid>
@@ -786,6 +1325,135 @@ function App() {
           </Box>
         </Box>
       )}
+
+      {/* Confirmation Mission Modal overlay */}
+      <Dialog 
+        open={showLaunchModal} 
+        onClose={() => setShowLaunchModal(false)}
+        PaperProps={{
+          sx: {
+            bgcolor: 'background.paper',
+            border: '1px solid #233554',
+            backgroundImage: 'none',
+            maxWidth: 450,
+            borderRadius: 2
+          }
+        }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, color: 'text.primary', borderBottom: '1px solid #233554', py: 2 }}>
+          LAUNCH MISSION CONFIRMATION
+        </DialogTitle>
+        <DialogContent sx={{ py: 3 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+            Confirming launch will trigger Drone Hub mechanical door releases and coordinate flight plans over local MQTT channels.
+          </Typography>
+          <Paper sx={{ p: 2, bgcolor: '#0a192f', border: '1px solid #233554' }}>
+            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
+              Assigned Drone: <strong>Drone-01 (M300 RTK)</strong>
+            </Typography>
+            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
+              Launch Dock: <strong>Dock Alpha</strong>
+            </Typography>
+            <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+              Flight Boundary: <strong>{polygonPoints.length} WGS84 vertices mapped</strong>
+            </Typography>
+          </Paper>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3, pt: 0, justifyContent: 'space-between' }}>
+          <Button 
+            variant="outlined" 
+            color="secondary" 
+            onClick={() => setShowLaunchModal(false)}
+            sx={{ textTransform: 'none' }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            color="success" 
+            startIcon={<FlightTakeoffIcon />}
+            onClick={triggerDroneLaunch}
+            sx={{ textTransform: 'none', fontWeight: 600 }}
+          >
+            Confirm & Launch
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Takeoff Interlock Progress Stepper overlay */}
+      <Dialog 
+        open={launching} 
+        PaperProps={{
+          sx: {
+            bgcolor: '#0a192f',
+            border: '1px solid #00e5ff',
+            backgroundImage: 'none',
+            minWidth: 420,
+            borderRadius: 2
+          }
+        }}
+      >
+        <DialogContent sx={{ py: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          {launchStep === 4 ? (
+            <CheckCircleIcon sx={{ fontSize: 60, color: 'success.main', mb: 2 }} />
+          ) : (
+            <Box 
+              sx={{ 
+                width: 50, 
+                height: 50, 
+                borderRadius: '50%', 
+                border: '3px solid #00e5ff', 
+                borderTopColor: 'transparent',
+                animation: 'spin 1s linear infinite',
+                mb: 2
+              }} 
+            />
+          )}
+
+          <Typography variant="h6" color={launchStep === 4 ? "success.main" : "text.primary"} sx={{ fontWeight: 600, mb: 1, textAlign: 'center' }}>
+            {launchStep === 4 ? "LAUNCH SUCCESSFUL!" : "DISPATCHING LAUNCH SEQUENCE"}
+          </Typography>
+          <Typography variant="caption" color="textSecondary" sx={{ mb: 4, display: 'block', textAlign: 'center', px: 2 }}>
+            {launchMessage}
+          </Typography>
+
+          <Box sx={{ width: '100%', px: 2 }}>
+            <Stepper activeStep={launchStep} alternativeLabel sx={{ '& .MuiStepLabel-label': { fontSize: '0.7rem' } }}>
+              <Step>
+                <StepLabel>Open Hub</StepLabel>
+              </Step>
+              <Step>
+                <StepLabel>Doors Open</StepLabel>
+              </Step>
+              <Step>
+                <StepLabel>Interlocks</StepLabel>
+              </Step>
+              <Step>
+                <StepLabel>Takeoff</StepLabel>
+              </Step>
+            </Stepper>
+          </Box>
+
+          {launchStep === 4 && (
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={() => setLaunching(false)}
+              sx={{ mt: 4, px: 4, textTransform: 'none', fontWeight: 600 }}
+            >
+              Close
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Append keyframes style block directly */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </ThemeProvider>
   );
 }

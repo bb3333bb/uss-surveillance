@@ -25,6 +25,26 @@ func NewAuthHandlers(oidcClient *OIDCClient, jwtSecret string) *AuthHandlers {
 
 // HandleLogin generates OAuth state cookies and redirects users to OIDC provider login.
 func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
+	if h.oidcClient == nil {
+		// Mock Mode: Generate default developer operator claims
+		userClaims := UserClaims{
+			Username: "operator-dev",
+			Roles:    []string{"operator"},
+		}
+		tokenString, err := SignJWT(userClaims, h.jwtSecret, 8*time.Hour)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"code": "INTERNAL_ERROR", "message": "Failed to sign mock token"}`))
+			return
+		}
+		
+		// Redirect back to frontend dev server with query parameters
+		redirectURL := "http://localhost:5173/?token=" + tokenString + "&user=" + userClaims.Username + "&role=" + userClaims.Roles[0]
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+		return
+	}
+
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	state := base64.URLEncoding.EncodeToString(b)
@@ -44,6 +64,13 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 // HandleCallback processes OIDC redirects, exchanges credentials, and issues custom JWTs.
 func (h *AuthHandlers) HandleCallback(w http.ResponseWriter, r *http.Request) {
+	if h.oidcClient == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code": "BAD_REQUEST", "message": "OIDC client is not initialized"}`))
+		return
+	}
+
 	stateCookie, err := r.Cookie("oauthstate")
 	if err != nil || r.URL.Query().Get("state") != stateCookie.Value {
 		w.Header().Set("Content-Type", "application/json")

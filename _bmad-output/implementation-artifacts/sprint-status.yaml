@@ -41,7 +41,7 @@
 # - Retrospective appends its action items to action_items; sprint-status surfaces open ones
 
 generated: 2026-07-09T15:52:00
-last_updated: 2026-07-09T18:06:00
+last_updated: 2026-07-10T14:59:00
 project: uss-surveillance
 project_key: NOKEY
 tracking_system: file-system
@@ -58,17 +58,59 @@ development_status:
   2-2-automated-weather-and-wind-assessment: review
   2-3-fleet-state-suggestion-engine: review
   2-4-flight-path-grid-generator-geofence-guard: review
-  epic-2-retrospective: optional
+  epic-2-retrospective: done
   epic-3: backlog
-  3-1-hub-interlock-takeoff-sequence: backlog
-  3-2-1-hz-telemetry-operator-mutex-lease: backlog
-  3-3-webrtc-video-stream-transcoding: backlog
-  3-4-manual-override-long-press-controls: backlog
-  3-5-automatic-landing-recharging: backlog
-  3-6-safety-alert-hud-indicator: backlog
-  epic-3-retrospective: optional
+  3-1-hub-interlock-takeoff-sequence: review
+  3-2-1-hz-telemetry-operator-mutex-lease: review
+  3-3-webrtc-video-stream-transcoding: review
+  3-4-manual-override-long-press-controls: review
+  3-5-automatic-landing-recharging: review
+  3-6-safety-alert-hud-indicator: review
+  epic-3-retrospective: done
   epic-4: backlog
-  4-1-synced-data-archiving: backlog
-  4-2-mission-history-dashboard: backlog
-  4-3-interactive-timeline-scrubber-map-sync: backlog
-  epic-4-retrospective: optional
+  4-1-synced-data-archiving: review
+  4-2-mission-history-dashboard: review
+  4-3-interactive-timeline-scrubber-map-sync: review
+  epic-4-retrospective: done
+
+action_items:
+  - epic: 2
+    action: "Create a schema diagram mapping the WebSockets JSON payload telemetry format"
+    owner: "Charlie"
+    status: open
+  - epic: 2
+    action: "Write a shared helper package in the Go backend to calculate distance on WGS84 coordinates"
+    owner: "Elena"
+    status: open
+  - epic: 2
+    action: "Implement Redis lock lease helper handlers for the operator control mutex"
+    owner: "Amelia"
+    status: completed
+  - epic: 2
+    action: "Setup mock test scripts simulating high-speed wind changes on drawn boundaries"
+    owner: "Dana"
+    status: open
+  - epic: 3
+    action: "Setup a global React Context or hook for telemetry WebSocket subscriptions to reuse connections across routing changes"
+    owner: "Elena"
+    status: open
+  - epic: 3
+    action: "Create a markdown API schema outlining WebSocket JSON events, alerts (LEASE_CONFLICT, RESTRICTED_AIRSPACE), and payload parameters"
+    owner: "Amelia"
+    status: open
+  - epic: 3
+    action: "Migrate in-memory local map leases to actual Redis key-value stores for multi-instance scaling"
+    owner: "Charlie"
+    status: open
+  - epic: 4
+    action: "Implement offset pagination on GET /api/operator/missions to retrieve meta rows first, loading heavy coordinates on-demand"
+    owner: "Charlie"
+    status: open
+  - epic: 4
+    action: "Cache historical coordinates in a React state ref during timeline scrubbing to prevent repetitive .map() operations"
+    owner: "Elena"
+    status: open
+  - epic: 4
+    action: "Document the historical JSON telemetry database schema in the docs folder"
+    owner: "Amelia"
+    status: open
