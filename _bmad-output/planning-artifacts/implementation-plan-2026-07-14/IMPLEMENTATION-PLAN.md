@@ -75,14 +75,21 @@ All open-source, $0 licensing (per Deployment & Budgeting Guide). No changes pro
 - Secrets/config inventory to provision: OIDC client ID/secret (SSO provider — org-specific, currently `[ASSUMPTION: SSO]` unverified), weather API key, MQTT/SRS credentials, DB credentials. Store as GitHub Actions secrets for CI and a `.env`/secrets file for the on-prem host (not committed).
 
 ### Phase 3 — Finish the implementation (16 stories: review → done)
-- Run the BMad code-review workflow (or an equivalent fresh-context review) on each of the 16 `review`-status stories and resolve findings.
-- Work off the 7 open retro action items already logged in `sprint-status.yaml`, notably the ones with real correctness/scaling risk:
-  - Migrate in-memory operator leases to real Redis (currently in-memory — breaks multi-instance deployment and is a safety-relevant mutex for FR-11 overrides).
-  - Shared WGS84 distance helper (currently likely duplicated/ad hoc).
-  - Mission list pagination (`GET /api/operator/missions`) before archive volume grows.
-- Wire the real weather API integration (replace the hardcoded threshold in `backend/pkg/weather`) — depends on Phase 0's open-question resolution.
-- Add missing test coverage: no frontend tests exist yet; no suggestion-engine (Python) tests exist yet. Backend Go has a reasonable baseline (`lease`, `auth`, `mqtt`, `weather`, `archive`, `suggestion` packages all have tests).
-- Document the WebSocket telemetry/command JSON schema and the historical telemetry DB schema (both flagged in retros, both needed before external integrators or new devs can work against the API confidently).
+
+**Done (2026-07-14):**
+- ✅ Shared WGS84 distance helper (`backend/pkg/geo`) — also fixed a real bug it uncovered: the `RESTRICTED_AIRSPACE` telemetry alert was comparing raw lat/lng degree deltas against a magic-number threshold instead of a real meters-based radius.
+- ✅ Mission list pagination (`GET /api/operator/missions?offset=&limit=`), backward compatible with the current no-params frontend call.
+- ✅ WebSocket telemetry/command JSON schema documented (`docs/WEBSOCKET-API.md`).
+- ✅ Historical telemetry/archive schema documented (`docs/DATA-SCHEMA.md`), including the Postgres migration shape.
+- ✅ Migrated operator control leases from in-memory to Redis (`backend/pkg/lease.RedisManager`, `REDIS_URL`-gated with in-memory fallback), closing the multi-instance-safety gap. Verified against both a unit-test double (miniredis) and a standalone miniredis TCP server driving the real gateway binary end-to-end. `docker-compose.yml` now includes a `redis` service.
+- ✅ Suggestion-engine (Python) test suite added in Phase 2 (was previously untested).
+
+**Still open:**
+- Run the BMad code-review workflow (or an equivalent fresh-context review) on each of the 16 `review`-status stories and resolve findings — not yet started, this is its own sizable pass.
+- Wire the real weather API integration (replace the hardcoded threshold in `backend/pkg/weather`) — blocked on choosing a provider (OpenWeatherMap free vs. paid tier) and getting an API key; still an open PRD question (§8.3).
+- Wire real Postgres+PostGIS and Mosquitto — larger lifts than originally scoped here (see the mock-infra note in §0); best tackled once Docker Compose itself is verified working (still pending user confirmation, see Phase 1).
+- Frontend: no test suite exists yet (Vitest setup needed); the retro-flagged telemetry WebSocket hook/context refactor and timeline-scrubber coordinate caching are both real UI changes that need browser verification before landing, not done blind.
+- "Mock test scripts simulating high-speed wind changes" retro item — low value while weather is still a hardcoded stub; revisit once real weather API is wired.
 
 ### Phase 4 — On-prem deployment
 - Provision hardware per the existing sizing guide: 8–16 core CPU, 32–64GB ECC RAM, 1–2TB NVMe, GPU (T4/A2) recommended for WebRTC transcoding headroom, Ubuntu 22.04 LTS.
