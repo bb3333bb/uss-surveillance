@@ -1,0 +1,31 @@
+services:
+  suggestion-engine:
+    build: ./suggestion-engine
+    ports:
+      - "50051:50051"
+    restart: unless-stopped
+
+  gateway:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      SUGGESTION_ENGINE_URL: "http://suggestion-engine:50051"
+      SKIP_OIDC_INIT: "true"
+    volumes:
+      - gateway-data:/app/data
+    depends_on:
+      - suggestion-engine
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+volumes:
+  gateway-data:
