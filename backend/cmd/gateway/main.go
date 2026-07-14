@@ -4,19 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"math"
 	"net/http"
 	"os"
-	"math"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"uss-surveillance/backend/pkg/archive"
 	"uss-surveillance/backend/pkg/auth"
+	"uss-surveillance/backend/pkg/geo"
 	"uss-surveillance/backend/pkg/lease"
 	"uss-surveillance/backend/pkg/mqtt"
 	"uss-surveillance/backend/pkg/suggestion"
 	"uss-surveillance/backend/pkg/weather"
+)
+
+// Restricted airspace geofence (Tan Son Nhat airport area NFZ), mirrored
+// from suggestion-engine/main.py's NFZ_CENTER/NFZ_RADIUS_METERS.
+const (
+	restrictedZoneLat          = 10.7725
+	restrictedZoneLng          = 106.69
+	restrictedZoneRadiusMeters = 800.0
 )
 
 // DroneTelemetryState tracks the live telemetry variables of the active drone.
@@ -57,6 +67,34 @@ func getHubDoorsState() string {
 	return globalHubDoorsState
 }
 
+// paginationBounds resolves offset/limit query params into a [start, end)
+// slice range over a total-length collection. Invalid or missing params
+// fall back to the full range, so callers that pass no params get the
+// unpaginated response.
+func paginationBounds(total int, offsetParam, limitParam string) (start, end int) {
+	start = 0
+	if offsetParam != "" {
+		if parsed, err := strconv.Atoi(offsetParam); err == nil && parsed >= 0 {
+			start = parsed
+		}
+	}
+	if start > total {
+		start = total
+	}
+
+	end = total
+	if limitParam != "" {
+		if parsed, err := strconv.Atoi(limitParam); err == nil && parsed >= 0 {
+			end = start + parsed
+			if end > total {
+				end = total
+			}
+		}
+	}
+
+	return start, end
+}
+
 func main() {
 	log.Println("Initializing USS Surveillance Gateway...")
 
@@ -84,7 +122,7 @@ func main() {
 							if errArch != nil {
 								log.Printf("Archiver error on dock: %v", errArch)
 							}
-							
+
 							// Trigger mechanical closures
 							go func() {
 								setHubDoorsState("opening")
@@ -172,7 +210,7 @@ func main() {
 
 	// Protected Routes
 	protectedMux := http.NewServeMux()
-	
+
 	// Open dashboard view (any authenticated user can view)
 	protectedMux.HandleFunc("/api/operator/dashboard", func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.GetUserClaims(r.Context())
@@ -299,9 +337,14 @@ func main() {
 			missions[i], missions[j] = missions[j], missions[i]
 		}
 
+		// Offset pagination (AD-Retro-Epic4): defaults preserve the
+		// full-list response when the caller passes no query params.
+		offset, end := paginationBounds(len(missions), r.URL.Query().Get("offset"), r.URL.Query().Get("limit"))
+
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Total-Count", strconv.Itoa(len(missions)))
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(missions)
+		_ = json.NewEncoder(w).Encode(missions[offset:end])
 	})
 	protectedMux.Handle("/api/operator/missions", auth.RequireRole("operator", "admin")(missionsHandler))
 
@@ -431,8 +474,6 @@ func main() {
 	})
 	protectedMux.Handle("/api/operator/launch", auth.RequireRole("operator", "admin")(launchHandler))
 
-
-
 	// WebSocket 1 Hz Telemetry & Mutex Control Lease Handler
 	protectedMux.HandleFunc("/api/operator/telemetry", func(w http.ResponseWriter, r *http.Request) {
 		claims := auth.GetUserClaims(r.Context())
@@ -485,10 +526,8 @@ func main() {
 							alerts = append(alerts, "WEATHER_BREACH_WIND", "WEATHER_BREACH_RAIN")
 						}
 						// Restricted airspace (TSN airport NFZ geofence) checking distance
-						dx := lat - 10.7725
-						dy := lng - 106.69
-						dist := math.Sqrt(dx*dx + dy*dy)
-						if dist < 0.0072 { // ~800m threshold radius
+						dist := geo.HaversineMeters(lat, lng, restrictedZoneLat, restrictedZoneLng)
+						if dist < restrictedZoneRadiusMeters {
 							alerts = append(alerts, "RESTRICTED_AIRSPACE")
 						}
 					}
