@@ -68,13 +68,22 @@ func (c *Client) FetchCurrent(lat, lng float64) (*WeatherResponse, error) {
 		return nil, fmt.Errorf("failed to decode OpenWeatherMap response: %w", err)
 	}
 
+	// Drizzle is light precipitation and doesn't block launch on its own;
+	// Rain/Thunderstorm/Snow are treated as the "heavy precipitation" this
+	// safety check (AC: "wind exceeds 15 m/s OR heavy precipitation is
+	// detected") is meant to catch.
 	precipitation := "none"
+	heavyPrecip := false
 	if len(owm.Weather) > 0 {
 		switch owm.Weather[0].Main {
-		case "Rain", "Drizzle", "Thunderstorm":
+		case "Rain", "Thunderstorm":
+			precipitation = "rain"
+			heavyPrecip = true
+		case "Drizzle":
 			precipitation = "rain"
 		case "Snow":
 			precipitation = "snow"
+			heavyPrecip = true
 		}
 	}
 
@@ -82,6 +91,6 @@ func (c *Client) FetchCurrent(lat, lng float64) (*WeatherResponse, error) {
 		WindSpeed:     owm.Wind.Speed,
 		Precipitation: precipitation,
 		Temp:          owm.Main.Temp,
-		Safe:          owm.Wind.Speed <= MaxSafeWindSpeedMS,
+		Safe:          owm.Wind.Speed <= MaxSafeWindSpeedMS && !heavyPrecip,
 	}, nil
 }

@@ -79,6 +79,55 @@ func TestHandleWeatherCheckLiveAPI(t *testing.T) {
 	}
 }
 
+func TestHandleWeatherCheckLiveAPIBlocksOnHeavyPrecipDespiteSafeWind(t *testing.T) {
+	owm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"weather": [{"main": "Thunderstorm"}],
+			"main": {"temp": 24.0},
+			"wind": {"speed": 3.1}
+		}`))
+	}))
+	defer owm.Close()
+
+	client := NewClient("test-key")
+	client.baseURL = owm.URL
+
+	live, err := client.FetchCurrent(10.76, 106.66)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if live.WindSpeed > MaxSafeWindSpeedMS {
+		t.Fatalf("test setup error: wind speed %f should be under the safe threshold", live.WindSpeed)
+	}
+	if live.Safe {
+		t.Error("expected unsafe: heavy precipitation should block launch even with safe wind speed")
+	}
+}
+
+func TestHandleWeatherCheckLiveAPIAllowsLightDrizzle(t *testing.T) {
+	owm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"weather": [{"main": "Drizzle"}],
+			"main": {"temp": 24.0},
+			"wind": {"speed": 3.1}
+		}`))
+	}))
+	defer owm.Close()
+
+	client := NewClient("test-key")
+	client.baseURL = owm.URL
+
+	live, err := client.FetchCurrent(10.76, 106.66)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !live.Safe {
+		t.Error("expected safe: light drizzle shouldn't block launch")
+	}
+}
+
 func TestHandleWeatherCheckFallsBackToStubOnFetchError(t *testing.T) {
 	owm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
