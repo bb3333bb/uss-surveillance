@@ -5,31 +5,39 @@ import (
 	"time"
 )
 
-// Lease represents a temporal ownership lease over a drone.
-type Lease struct {
+// Manager coordinates exclusive control leases over drones. Implementations
+// must guarantee that AcquireLease is safe under concurrent callers - it
+// backs the mutex gating manual override commands (FR-11) and the
+// telemetry WebSocket's heartbeat watchdog.
+type Manager interface {
+	AcquireLease(operator string, droneID string, duration time.Duration) bool
+	GetLeaseHolder(droneID string) (string, bool)
+	ReleaseLease(droneID string)
+}
+
+type leaseEntry struct {
 	Operator  string
-	DroneID   string
 	ExpiresAt time.Time
 }
 
-// Manager coordinates concurrent lease acquisitions thread-safely.
-type Manager struct {
+// InMemoryManager is a single-process lease broker. It's used for local
+// dev/CI and as the automatic fallback when REDIS_URL is unset - safe only
+// for a single gateway instance. See RedisManager for multi-instance
+// deployments.
+type InMemoryManager struct {
 	mu     sync.Mutex
-	leases map[string]Lease
+	leases map[string]leaseEntry
 }
 
-// NewManager instantiates a lease broker.
-func NewManager() *Manager {
-	return &Manager{
-		leases: make(map[string]Lease),
+// NewManager instantiates an in-memory lease broker.
+func NewManager() *InMemoryManager {
+	return &InMemoryManager{
+		leases: make(map[string]leaseEntry),
 	}
 }
 
-// DefaultManager is the package-level shared lease provider.
-var DefaultManager = NewManager()
-
 // AcquireLease attempts to lock or renew command access to a drone.
-func (m *Manager) AcquireLease(operator string, droneID string, duration time.Duration) bool {
+func (m *InMemoryManager) AcquireLease(operator string, droneID string, duration time.Duration) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -41,16 +49,15 @@ func (m *Manager) AcquireLease(operator string, droneID string, duration time.Du
 		return false
 	}
 
-	m.leases[droneID] = Lease{
+	m.leases[droneID] = leaseEntry{
 		Operator:  operator,
-		DroneID:   droneID,
 		ExpiresAt: now.Add(duration),
 	}
 	return true
 }
 
 // GetLeaseHolder returns the current operator owning the drone control lock.
-func (m *Manager) GetLeaseHolder(droneID string) (string, bool) {
+func (m *InMemoryManager) GetLeaseHolder(droneID string) (string, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -62,8 +69,13 @@ func (m *Manager) GetLeaseHolder(droneID string) (string, bool) {
 }
 
 // ReleaseLease forces eviction of the current control lock lease.
-func (m *Manager) ReleaseLease(droneID string) {
+func (m *InMemoryManager) ReleaseLease(droneID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.leases, droneID)
 }
+
+// DefaultManager is the package-level shared lease provider, selected via
+// NewFromEnv: Redis-backed when REDIS_URL is set (required for any
+// multi-instance gateway deployment), in-memory otherwise.
+var DefaultManager Manager = NewFromEnv()

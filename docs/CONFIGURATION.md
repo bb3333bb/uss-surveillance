@@ -14,6 +14,7 @@ Environment variables the running system reads today, plus what will be needed o
 | `OIDC_CLIENT_ID` | SSO client ID | `uss-surveillance-client` (placeholder) |
 | `OIDC_CLIENT_SECRET` | SSO client secret | none — required once a real IdP is wired in |
 | `OIDC_REDIRECT_URI` | OAuth2 callback URL | none |
+| `REDIS_URL` | Redis connection string (e.g. `redis://redis:6379`) for the operator control lease mutex (`backend/pkg/lease.RedisManager`) | unset — falls back to an in-process, single-instance lease manager. Set this for any multi-instance gateway deployment. |
 
 **Open item:** `[ASSUMPTION: SSO]` in the PRD is still unverified — we don't yet know which real OIDC/OAuth2 provider the org uses. `OIDC_CLIENT_SECRET`/`OIDC_ISSUER_URL`/`OIDC_CLIENT_ID` can't be set to real values until that's resolved.
 
@@ -25,7 +26,6 @@ These appear in the HLD but nothing in the codebase reads them yet — listed he
 |---|---|---|
 | `WEATHER_API_KEY` | Real wind/weather lookup for FR-4 (currently hardcoded lat threshold in `backend/pkg/weather`) | Choosing a provider — OpenWeatherMap free tier vs. paid, per `DEPLOYMENT-BUDGETING-GUIDE.md` |
 | `DATABASE_URL` (Postgres+PostGIS) | Mission archive, geofence data (currently a local JSON file in `backend/pkg/archive`) | Phase 3 real-infra wiring |
-| `REDIS_URL` | Operator mutex leases, telemetry cache (currently in-process) | Phase 3 real-infra wiring |
 | `MQTT_BROKER_URL` + TLS cert paths | Real Mosquitto broker connection (currently an in-memory mock in `backend/pkg/mqtt`) | Phase 3 real-infra wiring, and eventually real Drone Hub hardware |
 | `SRS_*` (media server ingest/playout URLs) | WebRTC video streaming (not yet implemented in the gateway at all) | Phase 3/4 |
 

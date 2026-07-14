@@ -5,6 +5,12 @@ services:
       - "50051:50051"
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
   gateway:
     build: ./backend
     ports:
@@ -13,10 +19,12 @@ services:
       PORT: "8080"
       SUGGESTION_ENGINE_URL: "http://suggestion-engine:50051"
       SKIP_OIDC_INIT: "true"
+      REDIS_URL: "redis://redis:6379"
     volumes:
       - gateway-data:/app/data
     depends_on:
       - suggestion-engine
+      - redis
     restart: unless-stopped
 
   frontend:
