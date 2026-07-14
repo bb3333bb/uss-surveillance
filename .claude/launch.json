@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "suggestion-engine",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["main.py"],
+      "cwd": "suggestion-engine",
+      "port": 50051
+    },
+    {
+      "name": "gateway",
+      "runtimeExecutable": "go",
+      "runtimeArgs": ["run", "./cmd/gateway"],
+      "cwd": "backend",
+      "port": 8080,
+      "env": {
+        "SKIP_OIDC_INIT": "true"
+      }
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "frontend",
+      "port": 5173
+    }
+  ]
+}

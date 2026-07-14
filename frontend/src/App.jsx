@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   ThemeProvider, CssBaseline, Button, Box, Typography, Paper, Avatar, 
   Tabs, Tab, Grid, AppBar, Toolbar, Chip, IconButton,
@@ -24,6 +24,7 @@ import axios from 'axios';
 import { useAuth } from './context/AuthContext.jsx';
 import theme from './theme.js';
 import VideoPlayer from './components/VideoPlayer.jsx';
+import useTelemetrySocket from './hooks/useTelemetrySocket.js';
 
 function App() {
   const { isAuthenticated, user, role, login, logout, loading } = useAuth();
@@ -36,7 +37,6 @@ function App() {
   const leafletMapRef = useRef(null);
   const flightPathLayerRef = useRef(null);
   const droneMarkerRef = useRef(null);
-  const wsRef = useRef(null);
 
   const [isDrawing, setIsDrawing] = useState(false);
   const [polygonPoints, setPolygonPoints] = useState([]);
@@ -47,9 +47,7 @@ function App() {
   const [plannerMessage, setPlannerMessage] = useState(null);
 
   // Telemetry & Control mutex leases
-  const [telemetry, setTelemetry] = useState(null);
-  const [leaseholder, setLeaseholder] = useState("");
-  const [hubDoors, setHubDoors] = useState("closed");
+  const { telemetry, leaseholder, hubDoors, resetTelemetry } = useTelemetrySocket(isAuthenticated);
 
   // Historical Replay Mode states
   const [missions, setMissions] = useState([]);
@@ -130,59 +128,6 @@ function App() {
   useEffect(() => {
     drawStateRef.current.isDrawing = isDrawing;
   }, [isDrawing]);
-
-  // Telemetry WebSocket lifecycle connection
-  useEffect(() => {
-    if (!isAuthenticated) {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      return;
-    }
-
-    const token = sessionStorage.getItem('jwt');
-    const ws = new WebSocket(`ws://localhost:8080/api/operator/telemetry?token=${token}`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log("Telemetry WebSocket connection opened.");
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setTelemetry(data);
-        if (data.leaseholder) {
-          setLeaseholder(data.leaseholder);
-        } else {
-          setLeaseholder("");
-        }
-        if (data.hub_doors) {
-          setHubDoors(data.hub_doors);
-        }
-      } catch (err) {
-        console.error("Failed to parse telemetry event payload:", err);
-      }
-    };
-
-    ws.onclose = () => {
-      console.log("Telemetry WebSocket connection closed.");
-    };
-
-    // Client heartbeat watch interval (AD-5: Sends client ping packets every 3s)
-    const heartbeatInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "ping" }));
-      }
-    }, 3000);
-
-    return () => {
-      clearInterval(heartbeatInterval);
-      ws.close();
-      wsRef.current = null;
-    };
-  }, [isAuthenticated]);
 
   // Render active or historical drone positions dynamically on Leaflet map
   useEffect(() => {
@@ -590,8 +535,29 @@ function App() {
     setPlannerMessage(null);
     setLaunching(false);
     setLaunchStep(0);
-    setTelemetry(null);
+    resetTelemetry();
   };
+
+  // Mission history list cards: derived purely from missions/replayMode/
+  // activeReplay, but the whole component re-renders every 1 Hz telemetry
+  // tick (and every scrub tick during replay) - memoize so this .map()
+  // doesn't re-run on ticks that don't actually change the list.
+  const missionListItems = useMemo(() => (
+    missions.map((mission) => {
+      const m = Math.floor(mission.duration_sec / 60);
+      const s = Math.floor(mission.duration_sec % 60);
+      const durationStr = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      const dateStr = new Date(mission.start_time).toLocaleString();
+      const isReplayingThis = replayMode && activeReplay?.id === mission.id;
+      return { mission, durationStr, dateStr, isReplayingThis };
+    })
+  ), [missions, replayMode, activeReplay]);
+
+  // Boundary vertex readout: only needs to recompute when the drawn
+  // polygon itself changes, not on every telemetry/scrub re-render.
+  const polygonPointRows = useMemo(() => (
+    polygonPoints.map((pt, i) => `[${i}]: ${pt.lat.toFixed(7)}, ${pt.lng.toFixed(7)}`)
+  ), [polygonPoints]);
 
   if (loading) {
     return (
@@ -788,9 +754,9 @@ function App() {
                             WGS84 Coordinates ({polygonPoints.length} vertices):
                           </Typography>
                           <Box sx={{ maxHeight: 150, overflow: 'auto', bgcolor: '#061325', p: 1, borderRadius: 1 }}>
-                            {polygonPoints.map((pt, i) => (
+                            {polygonPointRows.map((row, i) => (
                               <Typography key={i} variant="caption" sx={{ fontFamily: 'monospace', display: 'block', color: 'text.primary' }}>
-                                [{i}]: {pt.lat.toFixed(7)}, {pt.lng.toFixed(7)}
+                                {row}
                               </Typography>
                             ))}
                           </Box>
@@ -848,15 +814,9 @@ function App() {
                         No logs found. Run a mission to generate replay data.
                       </Typography>
                     ) : (
-                      missions.map((mission) => {
-                        const m = Math.floor(mission.duration_sec / 60);
-                        const s = Math.floor(mission.duration_sec % 60);
-                        const durationStr = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                        const dateStr = new Date(mission.start_time).toLocaleString();
-                        const isReplayingThis = replayMode && activeReplay?.id === mission.id;
-
+                      missionListItems.map(({ mission, durationStr, dateStr, isReplayingThis }) => {
                         return (
-                          <Paper 
+                          <Paper
                             key={mission.id} 
                             sx={{ 
                               p: 1.5, 

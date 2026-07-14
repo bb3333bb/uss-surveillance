@@ -5,3 +5,6 @@
 # Python
 __pycache__/
 *.pyc
+
+# Gateway runtime mission archive (see docs/DATA-SCHEMA.md)
+backend/data/
