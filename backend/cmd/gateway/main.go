@@ -34,6 +34,7 @@ const (
 type DroneTelemetryState struct {
 	mu           sync.Mutex
 	IsFlying     bool
+	IsPaused     bool // FR-11 Pause: hovers in place, stops advancing along Path
 	Path         []suggestion.PlanRequestCoordinate
 	CurrentIndex int
 	Battery      float64
@@ -108,43 +109,50 @@ func main() {
 		for range ticker.C {
 			globalDroneState.mu.Lock()
 			if globalDroneState.IsFlying {
-				if len(globalDroneState.Path) > 0 {
-					if globalDroneState.CurrentIndex < len(globalDroneState.Path)-1 {
-						globalDroneState.CurrentIndex++
-						globalDroneState.Battery -= 0.5
-					} else {
-						// Final coordinate reached - check precision match (AD-6) and trigger interlocks
-						lastCoord := globalDroneState.Path[globalDroneState.CurrentIndex]
-						diffLat := math.Abs(lastCoord.Lat - 10.762622)
-						diffLng := math.Abs(lastCoord.Lng - 106.660172)
-						if diffLat < 1e-7 && diffLng < 1e-7 {
-							globalDroneState.IsFlying = false
-							_, errArch := archive.DefaultArchiver.SaveMission()
-							if errArch != nil {
-								log.Printf("Archiver error on dock: %v", errArch)
-							}
-
-							// Trigger mechanical closures
-							go func() {
-								setHubDoorsState("opening")
-								time.Sleep(1 * time.Second)
-								setHubDoorsState("open")
-								time.Sleep(1 * time.Second)
-								setHubDoorsState("closing")
-								time.Sleep(1 * time.Second)
-								setHubDoorsState("recharging")
-							}()
+				if globalDroneState.IsPaused {
+					// FR-11 Pause: hold altitude and position, zero forward
+					// speed, don't advance CurrentIndex or run landing checks.
+					globalDroneState.Altitude = 12.0
+					globalDroneState.Speed = 0.0
+				} else {
+					if len(globalDroneState.Path) > 0 {
+						if globalDroneState.CurrentIndex < len(globalDroneState.Path)-1 {
+							globalDroneState.CurrentIndex++
+							globalDroneState.Battery -= 0.5
 						} else {
-							globalDroneState.IsFlying = false
-							_, errArch := archive.DefaultArchiver.SaveMission()
-							if errArch != nil {
-								log.Printf("Archiver error on landing: %v", errArch)
+							// Final coordinate reached - check precision match (AD-6) and trigger interlocks
+							lastCoord := globalDroneState.Path[globalDroneState.CurrentIndex]
+							diffLat := math.Abs(lastCoord.Lat - 10.762622)
+							diffLng := math.Abs(lastCoord.Lng - 106.660172)
+							if diffLat < 1e-7 && diffLng < 1e-7 {
+								globalDroneState.IsFlying = false
+								_, errArch := archive.DefaultArchiver.SaveMission()
+								if errArch != nil {
+									log.Printf("Archiver error on dock: %v", errArch)
+								}
+
+								// Trigger mechanical closures
+								go func() {
+									setHubDoorsState("opening")
+									time.Sleep(1 * time.Second)
+									setHubDoorsState("open")
+									time.Sleep(1 * time.Second)
+									setHubDoorsState("closing")
+									time.Sleep(1 * time.Second)
+									setHubDoorsState("recharging")
+								}()
+							} else {
+								globalDroneState.IsFlying = false
+								_, errArch := archive.DefaultArchiver.SaveMission()
+								if errArch != nil {
+									log.Printf("Archiver error on landing: %v", errArch)
+								}
 							}
 						}
 					}
+					globalDroneState.Altitude = 12.0
+					globalDroneState.Speed = 5.2
 				}
-				globalDroneState.Altitude = 12.0
-				globalDroneState.Speed = 5.2
 
 				// Log point
 				var curLat, curLng float64
@@ -282,8 +290,11 @@ func main() {
 
 		// Update active simulation states
 		globalDroneState.mu.Lock()
-		if req.Command == "rth" {
+		if req.Command == "pause" {
+			globalDroneState.IsPaused = true
+		} else if req.Command == "rth" {
 			globalDroneState.IsFlying = false
+			globalDroneState.IsPaused = false
 			_, errArch := archive.DefaultArchiver.SaveMission()
 			if errArch != nil {
 				log.Printf("Archiver error on RTH: %v", errArch)
@@ -464,6 +475,7 @@ func main() {
 
 		globalDroneState.mu.Lock()
 		globalDroneState.IsFlying = true
+		globalDroneState.IsPaused = false
 		globalDroneState.CurrentIndex = 0
 		globalDroneState.Battery = 98.0
 		archive.DefaultArchiver.StartMission()
@@ -610,7 +622,13 @@ func main() {
 					_ = mqtt.DefaultClient.Publish("drone/hub/command", "hover")
 
 					globalDroneState.mu.Lock()
-					globalDroneState.IsFlying = false
+					// Hover in place (matches the log message and the manual
+					// Pause command) rather than clearing IsFlying, which
+					// would snap the displayed position back to the dock
+					// instead of holding it.
+					if globalDroneState.IsFlying {
+						globalDroneState.IsPaused = true
+					}
 					globalDroneState.mu.Unlock()
 				}
 				return
