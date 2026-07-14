@@ -14,6 +14,7 @@ import (
 	"github.com/gorilla/websocket"
 	"uss-surveillance/backend/pkg/archive"
 	"uss-surveillance/backend/pkg/auth"
+	"uss-surveillance/backend/pkg/cors"
 	"uss-surveillance/backend/pkg/geo"
 	"uss-surveillance/backend/pkg/lease"
 	"uss-surveillance/backend/pkg/mqtt"
@@ -626,8 +627,17 @@ func main() {
 		port = "8080"
 	}
 
+	corsAllowedOrigin := os.Getenv("CORS_ALLOWED_ORIGIN")
+	if corsAllowedOrigin == "" {
+		corsAllowedOrigin = "http://localhost:5173"
+	}
+	// CORS must wrap everything, including the auth-protected routes, so
+	// preflight OPTIONS requests are answered before AuthMiddleware's JWT
+	// check runs - browsers never send Authorization on preflight.
+	handler := cors.Middleware(corsAllowedOrigin)(mux)
+
 	log.Printf("Server listening on port %s...", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatalf("Gateway server execution failed: %v", err)
 	}
 }
