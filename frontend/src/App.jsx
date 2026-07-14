@@ -563,7 +563,7 @@ function App() {
     return (
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
           <Typography color="textSecondary">Loading portal...</Typography>
         </Box>
       </ThemeProvider>
@@ -577,12 +577,14 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       {!isAuthenticated ? (
-        <Box 
-          display="flex" 
-          justifyContent="center" 
-          alignItems="center" 
-          minHeight="100vh"
-          sx={{ backgroundColor: '#0a192f' }}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '100vh',
+            backgroundColor: '#0a192f'
+          }}
         >
           <Paper 
             elevation={4} 
@@ -618,11 +620,11 @@ function App() {
           </Paper>
         </Box>
       ) : (
-        <Box display="flex" flexDirection="column" height="100vh">
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
           {/* Header */}
           <AppBar position="static" sx={{ bgcolor: 'background.paper', borderBottom: '1px solid #233554', backgroundImage: 'none' }}>
             <Toolbar sx={{ justifyContent: 'space-between' }}>
-              <Box display="flex" alignItems="center">
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <Avatar sx={{ bgcolor: 'primary.main', mr: 1.5, width: 32, height: 32 }}>
                   <FlightTakeoffIcon sx={{ fontSize: 18 }} />
                 </Avatar>
@@ -638,7 +640,7 @@ function App() {
                 />
               </Box>
 
-              <Box display="flex" alignItems="center">
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 {/* Control lease notification banner */}
                 {leaseholder && (
                   <Chip 
@@ -672,14 +674,14 @@ function App() {
           </AppBar>
 
           {/* 3-Column Body */}
-          <Box display="flex" flexGrow={1} overflow="hidden">
+          <Box sx={{ display: 'flex', flexGrow: 1, overflow: 'hidden' }}>
             {/* Left Sidebar */}
-            <Box 
-              width={leftOpen ? 320 : 0} 
-              sx={{ 
-                transition: 'width 0.2s', 
-                overflow: 'hidden', 
-                borderRight: leftOpen ? '1px solid #233554' : 'none', 
+            <Box
+              sx={{
+                width: leftOpen ? 320 : 0,
+                transition: 'width 0.2s',
+                overflow: 'hidden',
+                borderRight: leftOpen ? '1px solid #233554' : 'none',
                 bgcolor: 'background.paper',
                 display: 'flex',
                 flexDirection: 'column'
@@ -692,7 +694,7 @@ function App() {
                 </Tabs>
               </Box>
 
-              <Box p={2} flexGrow={1} overflow="auto">
+              <Box sx={{ p: 2, flexGrow: 1, overflow: 'auto' }}>
                 {tabVal === 0 ? (
                   <Box>
                     <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1.5, fontWeight: 600 }}>
@@ -875,10 +877,10 @@ function App() {
             </Box>
 
             {/* Toggle Left Sidebar Button */}
-            <Box display="flex" alignItems="center" bgcolor="background.default">
-              <IconButton 
-                size="small" 
-                onClick={() => setLeftOpen(!leftOpen)} 
+            <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: 'background.default' }}>
+              <IconButton
+                size="small"
+                onClick={() => setLeftOpen(!leftOpen)}
                 sx={{ 
                   color: 'primary.main', 
                   transform: leftOpen ? 'rotate(0deg)' : 'rotate(180deg)',
@@ -891,13 +893,13 @@ function App() {
             </Box>
 
             {/* Center Map Panel */}
-            <Box flexGrow={1} display="flex" flexDirection="column" position="relative" bgcolor="#0a192f">
-              <Box p={2} sx={{ borderBottom: '1px solid #233554', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', position: 'relative', bgcolor: '#0a192f' }}>
+              <Box sx={{ p: 2, borderBottom: '1px solid #233554', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'text.primary' }}>
                   2D Active Patrol Map
                 </Typography>
                 
-                <Box display="flex" gap={1}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
                   {/* Drawing Control Controls (Only for non-viewer roles) */}
                   {role !== 'viewer' && !isLeaseLocked && !telemetry?.is_flying && (
                     <>
@@ -936,11 +938,11 @@ function App() {
               </Box>
 
               {/* Leaflet Map DOM Canvas */}
-              <Box 
-                flexGrow={1} 
-                position="relative" 
-                sx={{ 
-                  width: '100%', 
+              <Box
+                sx={{
+                  flexGrow: 1,
+                  position: 'relative',
+                  width: '100%',
                   height: '100%',
                   minHeight: 0,
                   border: telemetry?.alerts?.length > 0 ? '2px solid #ff3d00' : 'none',
@@ -952,16 +954,16 @@ function App() {
                 
                 {/* Visual state indicator overlay */}
                 {isDrawing && (
-                  <Box 
-                    position="absolute" 
-                    top={12} 
-                    left="50%" 
-                    sx={{ 
-                      transform: 'translateX(-50%)', 
-                      bgcolor: 'background.paper', 
-                      px: 2, 
-                      py: 0.75, 
-                      borderRadius: 1, 
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 12,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      bgcolor: 'background.paper',
+                      px: 2,
+                      py: 0.75,
+                      borderRadius: 1,
                       border: '1px solid #00e5ff',
                       pointerEvents: 'none',
                       zIndex: 1000
@@ -975,21 +977,21 @@ function App() {
 
                 {/* Historical Replay Mode Banner Overlay */}
                 {replayMode && (
-                  <Box 
-                    position="absolute" 
-                    top={12} 
-                    left="50%" 
-                    sx={{ 
-                      transform: 'translateX(-50%)', 
-                      bgcolor: 'rgba(10, 25, 47, 0.95)', 
-                      border: '1.5px solid #00e5ff', 
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 12,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      bgcolor: 'rgba(10, 25, 47, 0.95)',
+                      border: '1.5px solid #00e5ff',
                       boxShadow: '0 0 15px rgba(0, 229, 255, 0.4)',
-                      borderRadius: 1, 
-                      px: 2, 
-                      py: 1, 
-                      zIndex: 1000, 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                      borderRadius: 1,
+                      px: 2,
+                      py: 1,
+                      zIndex: 1000,
+                      display: 'flex',
+                      alignItems: 'center',
                       gap: 2
                     }}
                   >
@@ -1013,16 +1015,16 @@ function App() {
 
                 {/* Weather Alert Banner */}
                 {weatherInfo && !weatherInfo.safe && (
-                  <Box 
-                    position="absolute" 
-                    top={12} 
-                    left="50%" 
-                    sx={{ 
-                      transform: 'translateX(-50%)', 
-                      bgcolor: 'error.main', 
-                      px: 2.5, 
-                      py: 1, 
-                      borderRadius: 1, 
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 12,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      bgcolor: 'error.main',
+                      px: 2.5,
+                      py: 1,
+                      borderRadius: 1,
                       boxShadow: '0 4px 15px rgba(255, 61, 0, 0.45)',
                       pointerEvents: 'none',
                       zIndex: 1000,
@@ -1040,16 +1042,16 @@ function App() {
 
                 {/* Restricted Airspace Warning Banner */}
                 {plannerSafe === false && (
-                  <Box 
-                    position="absolute" 
-                    top={12} 
-                    left="50%" 
-                    sx={{ 
-                      transform: 'translateX(-50%)', 
-                      bgcolor: 'error.main', 
-                      px: 2.5, 
-                      py: 1, 
-                      borderRadius: 1, 
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 12,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      bgcolor: 'error.main',
+                      px: 2.5,
+                      py: 1,
+                      borderRadius: 1,
                       boxShadow: '0 4px 15px rgba(255, 61, 0, 0.45)',
                       pointerEvents: 'none',
                       zIndex: 1000,
@@ -1067,21 +1069,21 @@ function App() {
 
                 {/* Historical Replay Bottom Scrubber & Playback Controls (Task 1 & 4) */}
                 {replayMode && activeReplay && activeReplay.telemetry && (
-                  <Box 
-                    position="absolute" 
-                    bottom={20} 
-                    left="50%" 
-                    sx={{ 
-                      transform: 'translateX(-50%)', 
-                      width: '85%', 
-                      bgcolor: 'rgba(10, 25, 47, 0.95)', 
-                      border: '1.5px solid #233554', 
-                      borderRadius: 2, 
-                      px: 3, 
-                      py: 1.5, 
-                      zIndex: 1000, 
-                      display: 'flex', 
-                      alignItems: 'center', 
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      bottom: 20,
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      width: '85%',
+                      bgcolor: 'rgba(10, 25, 47, 0.95)',
+                      border: '1.5px solid #233554',
+                      borderRadius: 2,
+                      px: 3,
+                      py: 1.5,
+                      zIndex: 1000,
+                      display: 'flex',
+                      alignItems: 'center',
                       gap: 2,
                       boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
                     }}
@@ -1136,10 +1138,10 @@ function App() {
             </Box>
 
             {/* Toggle Right Sidebar Button */}
-            <Box display="flex" alignItems="center" bgcolor="background.default">
-              <IconButton 
-                size="small" 
-                onClick={() => setRightOpen(!rightOpen)} 
+            <Box sx={{ display: 'flex', alignItems: 'center', bgcolor: 'background.default' }}>
+              <IconButton
+                size="small"
+                onClick={() => setRightOpen(!rightOpen)}
                 sx={{ 
                   color: 'primary.main', 
                   transform: rightOpen ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -1152,23 +1154,23 @@ function App() {
             </Box>
 
             {/* Right Sidebar */}
-            <Box 
-              width={rightOpen ? 380 : 0} 
-              sx={{ 
-                transition: 'width 0.2s', 
-                overflow: 'hidden', 
-                borderLeft: rightOpen ? '1px solid #233554' : 'none', 
+            <Box
+              sx={{
+                width: rightOpen ? 380 : 0,
+                transition: 'width 0.2s',
+                overflow: 'hidden',
+                borderLeft: rightOpen ? '1px solid #233554' : 'none',
                 bgcolor: 'background.paper',
                 display: 'flex',
                 flexDirection: 'column'
               }}
             >
-              <Box p={2} sx={{ borderBottom: '1px solid #233554' }}>
+              <Box sx={{ p: 2, borderBottom: '1px solid #233554' }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                   LIVE VIDEO MONITORING
                 </Typography>
               </Box>
-              <Box p={2}>
+              <Box sx={{ p: 2 }}>
                 <VideoPlayer 
                   isFlying={replayMode || telemetry?.is_flying} 
                   telemetry={replayMode && activeReplay && activeReplay.telemetry ? activeReplay.telemetry[replayIndex] : telemetry} 
@@ -1179,23 +1181,23 @@ function App() {
                 />
               </Box>
 
-              <Box p={2} sx={{ borderTop: '1px solid #233554' }}>
+              <Box sx={{ p: 2, borderTop: '1px solid #233554' }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>
                   DRONE TELEMETRY
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={6}>
-                    <Paper p={1} sx={{ p: 1, bgcolor: '#0a192f', border: '1px solid #233554' }}>
+                  <Grid size={6}>
+                    <Paper sx={{ p: 1, bgcolor: '#0a192f', border: '1px solid #233554' }}>
                       <Typography variant="caption" color="textSecondary">Altitude</Typography>
                       <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
                         {telemetry ? `${telemetry.altitude.toFixed(1)} m` : "0.0 m"}
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6}>
-                    <Paper p={1} sx={{ 
-                      p: 1, 
-                      bgcolor: '#0a192f', 
+                  <Grid size={6}>
+                    <Paper sx={{
+                      p: 1,
+                      bgcolor: '#0a192f',
                       border: weatherInfo && !weatherInfo.safe ? '1px solid #ff3d00' : '1px solid #233554',
                       color: weatherInfo && !weatherInfo.safe ? '#ff3d00' : 'text.primary'
                     }}>
@@ -1205,16 +1207,16 @@ function App() {
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6}>
-                    <Paper p={1} sx={{ p: 1, bgcolor: '#0a192f', border: '1px solid #233554' }}>
+                  <Grid size={6}>
+                    <Paper sx={{ p: 1, bgcolor: '#0a192f', border: '1px solid #233554' }}>
                       <Typography variant="caption" color="textSecondary">Battery</Typography>
                       <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
                         {telemetry ? `${telemetry.battery.toFixed(0)}%` : "92%"}
                       </Typography>
                     </Paper>
                   </Grid>
-                  <Grid item xs={6}>
-                    <Paper p={1} sx={{ p: 1, bgcolor: '#0a192f', border: '1px solid #233554' }}>
+                  <Grid size={6}>
+                    <Paper sx={{ p: 1, bgcolor: '#0a192f', border: '1px solid #233554' }}>
                       <Typography variant="caption" color="textSecondary">Speed</Typography>
                       <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
                         {telemetry ? `${telemetry.speed.toFixed(1)} m/s` : "0.0 m/s"}
@@ -1224,12 +1226,12 @@ function App() {
                 </Grid>
               </Box>
 
-              <Box p={2} sx={{ borderTop: '1px solid #233554', mt: 'auto' }}>
+              <Box sx={{ p: 2, borderTop: '1px solid #233554', mt: 'auto' }}>
                 <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>
                   EMERGENCY MANUAL OVERRIDES
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Button 
                       fullWidth 
                       variant="contained" 
@@ -1254,7 +1256,7 @@ function App() {
                       )}
                     </Button>
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Button 
                       fullWidth 
                       variant="contained" 

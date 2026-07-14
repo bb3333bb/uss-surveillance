@@ -213,15 +213,15 @@ export default function VideoPlayer({ isFlying, telemetry, alerts, replayMode, r
         <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       )}
       
-      <Box 
-        position="absolute" 
-        top={replayMode || hasAlerts ? 30 : 8} 
-        right={8} 
-        sx={{ 
-          bgcolor: 'rgba(10, 25, 47, 0.85)', 
-          px: 1.2, 
-          py: 0.35, 
-          borderRadius: 0.5, 
+      <Box
+        sx={{
+          position: 'absolute',
+          top: replayMode || hasAlerts ? 30 : 8,
+          right: 8,
+          bgcolor: 'rgba(10, 25, 47, 0.85)',
+          px: 1.2,
+          py: 0.35,
+          borderRadius: 0.5,
           border: '1px solid #00e5ff',
           pointerEvents: 'none'
         }}
