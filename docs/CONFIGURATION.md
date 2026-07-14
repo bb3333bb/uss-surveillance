@@ -16,6 +16,7 @@ Environment variables the running system reads today, plus what will be needed o
 | `OIDC_REDIRECT_URI` | OAuth2 callback URL | none |
 | `REDIS_URL` | Redis connection string (e.g. `redis://redis:6379`) for the operator control lease mutex (`backend/pkg/lease.RedisManager`) | unset — falls back to an in-process, single-instance lease manager. Set this for any multi-instance gateway deployment. |
 | `CORS_ALLOWED_ORIGIN` | Origin allowed to call the API cross-origin (`backend/pkg/cors`) | `http://localhost:5173` (Vite dev server). Set to the real frontend origin in any non-local deployment. |
+| `WEATHER_API_KEY` | OpenWeatherMap API key for the FR-4 wind-safety check (`backend/pkg/weather.Client`) | unset — falls back to the deterministic dev/CI stub (also used if a live fetch errors). Get a free-tier key at openweathermap.org and set this to go live. |
 
 **Open item:** `[ASSUMPTION: SSO]` in the PRD is still unverified — we don't yet know which real OIDC/OAuth2 provider the org uses. `OIDC_CLIENT_SECRET`/`OIDC_ISSUER_URL`/`OIDC_CLIENT_ID` can't be set to real values until that's resolved.
 
@@ -25,7 +26,6 @@ These appear in the HLD but nothing in the codebase reads them yet — listed he
 
 | Planned variable | Purpose | Blocked on |
 |---|---|---|
-| `WEATHER_API_KEY` | Real wind/weather lookup for FR-4 (currently hardcoded lat threshold in `backend/pkg/weather`) | Choosing a provider — OpenWeatherMap free tier vs. paid, per `DEPLOYMENT-BUDGETING-GUIDE.md` |
 | `DATABASE_URL` (Postgres+PostGIS) | Mission archive, geofence data (currently a local JSON file in `backend/pkg/archive`) | Phase 3 real-infra wiring |
 | `MQTT_BROKER_URL` + TLS cert paths | Real Mosquitto broker connection (currently an in-memory mock in `backend/pkg/mqtt`) | Phase 3 real-infra wiring, and eventually real Drone Hub hardware |
 | `SRS_*` (media server ingest/playout URLs) | WebRTC video streaming (not yet implemented in the gateway at all) | Phase 3/4 |

@@ -307,7 +307,7 @@ func main() {
 	protectedMux.Handle("/api/operator/command", auth.RequireRole("operator", "admin")(commandHandler))
 
 	// Weather checks route (accessible to any authenticated session)
-	protectedMux.HandleFunc("/api/operator/weather", weather.HandleWeatherCheck)
+	protectedMux.HandleFunc("/api/operator/weather", weather.NewHandler(os.Getenv("WEATHER_API_KEY")))
 
 	// Historical missions log retrieval endpoint (requires operator or admin role)
 	missionsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

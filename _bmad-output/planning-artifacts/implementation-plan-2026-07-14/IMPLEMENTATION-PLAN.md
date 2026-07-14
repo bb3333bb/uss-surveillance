@@ -83,10 +83,14 @@ All open-source, $0 licensing (per Deployment & Budgeting Guide). No changes pro
 - ✅ Historical telemetry/archive schema documented (`docs/DATA-SCHEMA.md`), including the Postgres migration shape.
 - ✅ Migrated operator control leases from in-memory to Redis (`backend/pkg/lease.RedisManager`, `REDIS_URL`-gated with in-memory fallback), closing the multi-instance-safety gap. Verified against both a unit-test double (miniredis) and a standalone miniredis TCP server driving the real gateway binary end-to-end. `docker-compose.yml` now includes a `redis` service.
 - ✅ Suggestion-engine (Python) test suite added in Phase 2 (was previously untested).
+- ✅ Extracted the telemetry WebSocket connection into a hook (`frontend/src/hooks/useTelemetrySocket.js`) and memoized the mission-history/polygon-vertex list renders, verified in a real browser (login, live telemetry, mission list, replay, scrubbing) with a before/after git-stash comparison confirming no regressions.
+- ✅ Fixed a real, previously-undiscovered bug: CORS preflight `OPTIONS` requests were rejected 401 by the JWT auth middleware, which silently broke every `/api/operator/*` call a real browser makes (not just missions) - `backend/pkg/cors` now answers preflight before auth runs. `CORS_ALLOWED_ORIGIN` env var, defaults to the Vite dev origin.
+- ✅ Wired the real weather API (`backend/pkg/weather.Client`, OpenWeatherMap) behind `WEATHER_API_KEY` - falls back to the exact same deterministic stub when unset or on fetch error, so nothing breaks until you provide a key. You still need to sign up for a free-tier key yourself (openweathermap.org) - I can't create third-party accounts.
+
+**Found via testing, not yet fixed (separate task chip spawned):** MUI's `Box`/`Grid` system props (`display`, `justifyContent`, `flexGrow`, etc.) aren't being applied as styles anywhere in the frontend, breaking the 3-column dashboard layout. Confirmed pre-existing (present before any of this session's changes) via git-stash comparison. A separate session is actively fixing this as of 2026-07-14.
 
 **Still open:**
 - Run the BMad code-review workflow (or an equivalent fresh-context review) on each of the 16 `review`-status stories and resolve findings — not yet started, this is its own sizable pass.
-- Wire the real weather API integration (replace the hardcoded threshold in `backend/pkg/weather`) — blocked on choosing a provider (OpenWeatherMap free vs. paid tier) and getting an API key; still an open PRD question (§8.3).
 - Wire real Postgres+PostGIS and Mosquitto — larger lifts than originally scoped here (see the mock-infra note in §0); best tackled once Docker Compose itself is verified working (still pending user confirmation, see Phase 1).
 - Frontend: no test suite exists yet (Vitest setup needed); the retro-flagged telemetry WebSocket hook/context refactor and timeline-scrubber coordinate caching are both real UI changes that need browser verification before landing, not done blind.
 - "Mock test scripts simulating high-speed wind changes" retro item — low value while weather is still a hardcoded stub; revisit once real weather API is wired.
