@@ -19,6 +19,45 @@ def haversine(lat1, lon1, lat2, lon2):
     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
     return R * c
 
+def latlng_to_local_meters(lat, lng, ref_lat, ref_lng):
+    """Approximate local east/north meters relative to a reference point.
+    Valid for the small (sub-few-km) areas this app operates over."""
+    R = 6371000.0
+    dlat = math.radians(lat - ref_lat)
+    dlng = math.radians(lng - ref_lng)
+    x = dlng * R * math.cos(math.radians(ref_lat))
+    y = dlat * R
+    return x, y
+
+def point_segment_distance_meters(px, py, ax, ay, bx, by):
+    """Distance in meters from point (px,py) to segment (a,b) -> (bx,by)."""
+    abx, aby = bx - ax, by - ay
+    seg_len_sq = abx * abx + aby * aby
+    if seg_len_sq == 0:
+        t = 0.0
+    else:
+        t = max(0.0, min(1.0, ((px - ax) * abx + (py - ay) * aby) / seg_len_sq))
+    closest_x = ax + t * abx
+    closest_y = ay + t * aby
+    dx, dy = px - closest_x, py - closest_y
+    return math.sqrt(dx * dx + dy * dy)
+
+def polygon_intersects_restricted_zone(vertices):
+    """Checks whether any polygon EDGE (not just vertices) comes within
+    NFZ_RADIUS_METERS of NFZ_CENTER. Point-only vertex checks miss the case
+    where a polygon's corners sit safely outside the zone but an edge
+    between them clips through it."""
+    nfz_x, nfz_y = 0.0, 0.0  # NFZ_CENTER is the local origin
+    n = len(vertices)
+    for i in range(n):
+        alat, alng = vertices[i]
+        blat, blng = vertices[(i + 1) % n]
+        ax, ay = latlng_to_local_meters(alat, alng, NFZ_CENTER[0], NFZ_CENTER[1])
+        bx, by = latlng_to_local_meters(blat, blng, NFZ_CENTER[0], NFZ_CENTER[1])
+        if point_segment_distance_meters(nfz_x, nfz_y, ax, ay, bx, by) <= NFZ_RADIUS_METERS:
+            return True
+    return False
+
 def is_point_in_polygon(lat, lng, polygon):
     """Ray-casting point containment checker."""
     n = len(polygon)
@@ -75,15 +114,10 @@ class SuggestionHandler(BaseHTTPRequestHandler):
 
             vertices = [(float(v['lat']), float(v['lng'])) for v in vertices_raw]
 
-            # 1. No-Fly Zone (Restricted Zone) Intersection Audit
-            restricted_intersect = False
-            for v in vertices:
-                dist = haversine(v[0], v[1], NFZ_CENTER[0], NFZ_CENTER[1])
-                if dist <= NFZ_RADIUS_METERS:
-                    restricted_intersect = True
-                    break
-
-            if restricted_intersect:
+            # 1. No-Fly Zone (Restricted Zone) Intersection Audit - checks
+            # every polygon EDGE, not just vertices, so a boundary that
+            # clips the NFZ between two safely-outside corners is caught.
+            if polygon_intersects_restricted_zone(vertices):
                 res = {
                     "safe": False,
                     "message": "Geofence intersects restricted airport airspace (No-Fly Zone)",

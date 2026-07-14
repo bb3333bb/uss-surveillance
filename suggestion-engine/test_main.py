@@ -4,7 +4,14 @@ import unittest
 import urllib.request
 from http.server import HTTPServer
 
-from main import SuggestionHandler, haversine, is_point_in_polygon, NFZ_CENTER
+from main import (
+    SuggestionHandler,
+    haversine,
+    is_point_in_polygon,
+    polygon_intersects_restricted_zone,
+    NFZ_CENTER,
+    NFZ_RADIUS_METERS,
+)
 
 
 class TestGeometryHelpers(unittest.TestCase):
@@ -23,6 +30,34 @@ class TestGeometryHelpers(unittest.TestCase):
     def test_point_in_polygon_outside(self):
         square = [(10.0, 106.0), (10.0, 106.01), (10.01, 106.01), (10.01, 106.0)]
         self.assertFalse(is_point_in_polygon(20.0, 120.0, square))
+
+    def test_polygon_intersects_restricted_zone_vertex_inside(self):
+        lat, lng = NFZ_CENTER
+        triangle = [(lat, lng), (lat + 0.02, lng), (lat, lng + 0.02)]
+        self.assertTrue(polygon_intersects_restricted_zone(triangle))
+
+    def test_polygon_intersects_restricted_zone_edge_clips_without_vertex_inside(self):
+        # All three vertices sit outside the 800m NFZ radius, but the edge
+        # between the first two passes directly through the NFZ center -
+        # this is exactly the gap a vertex-only check would miss.
+        lat, lng = NFZ_CENTER
+        triangle = [
+            (lat + 0.02, lng - 0.02),
+            (lat - 0.02, lng + 0.02),
+            (lat + 0.02, lng + 0.021),
+        ]
+        for v in triangle:
+            self.assertGreater(haversine(v[0], v[1], lat, lng), NFZ_RADIUS_METERS)
+        self.assertTrue(polygon_intersects_restricted_zone(triangle))
+
+    def test_polygon_intersects_restricted_zone_far_away(self):
+        square = [
+            (10.762, 106.660),
+            (10.763, 106.660),
+            (10.763, 106.661),
+            (10.762, 106.661),
+        ]
+        self.assertFalse(polygon_intersects_restricted_zone(square))
 
 
 class TestSuggestionServer(unittest.TestCase):
