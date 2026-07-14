@@ -1,3 +1,7 @@
 # BMAD (local only) - Commented out for config repo tracking
 # .bmad-core/
 .bmad-*/
+
+# Python
+__pycache__/
+*.pyc
