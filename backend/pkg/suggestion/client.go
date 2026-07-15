@@ -20,12 +20,13 @@ type SuggestionResponse struct {
 	RecommendedDock  string  `json:"recommended_dock"`
 	DistanceMeters   float64 `json:"distance_meters"`
 	Success          bool    `json:"success"`
+	Message          string  `json:"message,omitempty"`
 }
 
 // Client wraps connections to the Python Suggestion Engine service.
 type Client struct {
-	endpoint string
-	httpClient   *http.Client
+	endpoint   string
+	httpClient *http.Client
 }
 
 // NewClient instantiates the Suggestion service client.

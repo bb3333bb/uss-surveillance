@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"math"
 	"net/http"
@@ -35,6 +36,14 @@ const (
 // API - OpenWeatherMap's own data only refreshes roughly every ~10 minutes
 // server-side anyway, so checking more often than this buys little.
 const weatherCheckIntervalTicks = 30
+
+// minSuggestionBatteryPercent is the FR-5 "sufficient battery plus safety
+// margin" floor used when deciding whether Drone-01 is fit for a new
+// mission suggestion. FR-5 specifies this relative to the actual flight
+// plan's estimated consumption, which isn't known at suggestion time (the
+// plan hasn't been generated yet) - a flat conservative floor is the
+// pragmatic stand-in until per-plan consumption estimation exists.
+const minSuggestionBatteryPercent = 30.0
 
 // DroneTelemetryState tracks the live telemetry variables of the active drone.
 type DroneTelemetryState struct {
@@ -111,6 +120,33 @@ func paginationBounds(total int, offsetParam, limitParam string) (start, end int
 	}
 
 	return start, end
+}
+
+// applyFleetReadiness overlays real Drone-01 readiness onto a suggestion
+// engine response (FR-5): unavailable while it's on an active mission,
+// while another operator holds the exclusive control lease, or while its
+// battery is below minSuggestionBatteryPercent. Mutates res in place.
+func applyFleetReadiness(res *suggestion.SuggestionResponse, requestingOperator string) {
+	globalDroneState.mu.Lock()
+	battery := globalDroneState.Battery
+	isFlying := globalDroneState.IsFlying
+	globalDroneState.mu.Unlock()
+
+	leaseholder, hasLease := lease.DefaultManager.GetLeaseHolder("Drone-01")
+
+	switch {
+	case isFlying:
+		res.Success = false
+		res.Message = "Drone-01 is currently on an active mission and unavailable for a new assignment."
+	case hasLease && leaseholder != requestingOperator:
+		res.Success = false
+		res.Message = "Drone-01's controls are currently locked by another operator (" + leaseholder + ")."
+	case battery < minSuggestionBatteryPercent:
+		res.Success = false
+		res.Message = fmt.Sprintf("Drone-01 battery (%.0f%%) is below the %.0f%% safety margin required for a new mission - recommend charging before launch.", battery, minSuggestionBatteryPercent)
+	default:
+		res.Success = true
+	}
 }
 
 func main() {
@@ -433,17 +469,21 @@ func main() {
 		res, err := suggestionClient.GetSuggestion(req.Lat, req.Lng)
 		if err != nil {
 			log.Printf("Python suggestion engine connection failed: %v. Returning fallback suggestion.", err)
-			fallback := suggestion.SuggestionResponse{
+			res = &suggestion.SuggestionResponse{
 				RecommendedDrone: "Drone-01 (M300 RTK)",
 				RecommendedDock:  "Dock Alpha",
 				DistanceMeters:   14.8,
 				Success:          true,
 			}
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(fallback)
-			return
 		}
+
+		// FR-5: the suggestion engine only computes geographic drone/dock
+		// allocation - it has no visibility into live fleet state, since
+		// that lives in this gateway process. Overlay real readiness here
+		// (only one drone/hub is modeled, so "state-based recommendation"
+		// reduces to "is Drone-01 actually fit for a new mission").
+		claims := auth.GetUserClaims(r.Context())
+		applyFleetReadiness(res, claims.Username)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
