@@ -252,6 +252,12 @@ func main() {
 							globalDroneState.Battery = 100.0
 						}
 					}
+					if globalDroneState.Battery >= 100.0 {
+						// Fully charged - the hub has nothing left to do,
+						// so it settles back to closed/ready instead of
+						// displaying "recharging" forever.
+						setHubDoorsState("closed")
+					}
 				}
 				globalDroneState.Altitude = 0.0
 				globalDroneState.Speed = 0.0
@@ -570,6 +576,20 @@ func main() {
 			_, _ = w.Write([]byte(`{"status": "error", "message": "` + msg + `"}`))
 			return
 		}
+
+		// RunLaunchSequence already confirmed doors are physically open
+		// (FR-12 interlock) before returning success - reflect that in the
+		// telemetry-facing hub state too, then close up behind the
+		// departed drone. Previously nothing here touched
+		// globalHubDoorsState at all, so it stayed "closed" for the
+		// entire flight despite the doors having just opened for takeoff.
+		setHubDoorsState("open")
+		go func() {
+			time.Sleep(1 * time.Second)
+			setHubDoorsState("closing")
+			time.Sleep(1 * time.Second)
+			setHubDoorsState("closed")
+		}()
 
 		globalDroneState.mu.Lock()
 		globalDroneState.IsFlying = true
