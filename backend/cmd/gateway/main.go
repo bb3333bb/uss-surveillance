@@ -30,6 +30,12 @@ const (
 	restrictedZoneRadiusMeters = 800.0
 )
 
+// weatherCheckIntervalTicks throttles in-flight weather polling to once
+// every N 1Hz ticks, so a multi-minute flight doesn't hammer the weather
+// API - OpenWeatherMap's own data only refreshes roughly every ~10 minutes
+// server-side anyway, so checking more often than this buys little.
+const weatherCheckIntervalTicks = 30
+
 // DroneTelemetryState tracks the live telemetry variables of the active drone.
 type DroneTelemetryState struct {
 	mu           sync.Mutex
@@ -40,12 +46,22 @@ type DroneTelemetryState struct {
 	Battery      float64
 	Altitude     float64
 	Speed        float64
+
+	// In-flight weather safety, refreshed every weatherCheckIntervalTicks
+	// rather than on every tick. Backs the WEATHER_BREACH_* telemetry
+	// alerts - previously a hardcoded-latitude placeholder unrelated to
+	// actual weather.
+	WeatherSafe          bool
+	WeatherWindSpeed     float64
+	WeatherPrecipitation string
+	weatherTickCounter   int
 }
 
 var globalDroneState = &DroneTelemetryState{
-	Battery:  92.0,
-	Altitude: 0.0,
-	Speed:    0.0,
+	Battery:     92.0,
+	Altitude:    0.0,
+	Speed:       0.0,
+	WeatherSafe: true,
 }
 
 var upgrader = websocket.Upgrader{
@@ -102,6 +118,15 @@ func main() {
 
 	// Initialize mechanical Drone Hub simulator
 	mqtt.StartDroneHubSimulator(mqtt.DefaultClient)
+
+	// Shared weather client: real OpenWeatherMap data when WEATHER_API_KEY
+	// is set, nil (stub fallback via weather.CheckSafety) otherwise. Used
+	// both by the /api/operator/weather endpoint and by the in-flight
+	// telemetry ticker's periodic WEATHER_BREACH_* check below.
+	var weatherClient *weather.Client
+	if weatherAPIKey := os.Getenv("WEATHER_API_KEY"); weatherAPIKey != "" {
+		weatherClient = weather.NewClient(weatherAPIKey)
+	}
 
 	// Background ticker advancing drone coordinates step-by-step along active plans (1 Hz)
 	go func() {
@@ -163,6 +188,25 @@ func main() {
 					curLat, curLng = 10.762622, 106.660172
 				}
 				archive.DefaultArchiver.LogPoint(curLat, curLng, globalDroneState.Altitude, globalDroneState.Battery, globalDroneState.Speed)
+
+				// Refresh in-flight weather safety periodically (throttled -
+				// see weatherCheckIntervalTicks). The actual fetch runs in
+				// its own goroutine so a slow/blocked HTTP call to the
+				// weather API can't stall the 1Hz ticker or any handler
+				// waiting on globalDroneState.mu.
+				globalDroneState.weatherTickCounter++
+				if globalDroneState.weatherTickCounter >= weatherCheckIntervalTicks {
+					globalDroneState.weatherTickCounter = 0
+					checkLat, checkLng := curLat, curLng
+					go func() {
+						res := weather.CheckSafety(weatherClient, checkLat, checkLng)
+						globalDroneState.mu.Lock()
+						globalDroneState.WeatherSafe = res.Safe
+						globalDroneState.WeatherWindSpeed = res.WindSpeed
+						globalDroneState.WeatherPrecipitation = res.Precipitation
+						globalDroneState.mu.Unlock()
+					}()
+				}
 			} else {
 				// Docked battery replenishment ticks
 				if getHubDoorsState() == "recharging" {
@@ -318,7 +362,7 @@ func main() {
 	protectedMux.Handle("/api/operator/command", auth.RequireRole("operator", "admin")(commandHandler))
 
 	// Weather checks route (accessible to any authenticated session)
-	protectedMux.HandleFunc("/api/operator/weather", weather.NewHandler(os.Getenv("WEATHER_API_KEY")))
+	protectedMux.HandleFunc("/api/operator/weather", weather.NewHandlerWithClient(weatherClient))
 
 	// Historical missions log retrieval endpoint (requires operator or admin role)
 	missionsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -535,8 +579,13 @@ func main() {
 						alerts = append(alerts, "LEASE_CONFLICT")
 					}
 					if globalDroneState.IsFlying {
-						if lat > 10.77 {
-							alerts = append(alerts, "WEATHER_BREACH_WIND", "WEATHER_BREACH_RAIN")
+						if !globalDroneState.WeatherSafe {
+							if globalDroneState.WeatherWindSpeed > weather.MaxSafeWindSpeedMS {
+								alerts = append(alerts, "WEATHER_BREACH_WIND")
+							}
+							if globalDroneState.WeatherPrecipitation != "none" {
+								alerts = append(alerts, "WEATHER_BREACH_RAIN")
+							}
 						}
 						// Restricted airspace (TSN airport NFZ geofence) checking distance
 						dist := geo.HaversineMeters(lat, lng, restrictedZoneLat, restrictedZoneLng)

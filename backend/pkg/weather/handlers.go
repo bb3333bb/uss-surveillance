@@ -30,12 +30,14 @@ func NewHandler(apiKey string) http.HandlerFunc {
 	if apiKey != "" {
 		client = NewClient(apiKey)
 	}
-	return newHandler(client)
+	return NewHandlerWithClient(client)
 }
 
-// newHandler builds the handler around an already-constructed client (or
-// nil for stub-only mode), so tests can point it at a mock server.
-func newHandler(client *Client) http.HandlerFunc {
+// NewHandlerWithClient builds the handler around an already-constructed
+// client (or nil for stub-only mode), so callers that need the same client
+// elsewhere (e.g. the gateway's in-flight weather polling) or tests
+// pointing at a mock server don't have to construct a second one.
+func NewHandlerWithClient(client *Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Content-Type", "application/json")
@@ -52,20 +54,28 @@ func newHandler(client *Client) http.HandlerFunc {
 			return
 		}
 
-		res := stubWeather(req.Lat)
-		if client != nil {
-			live, err := client.FetchCurrent(req.Lat, req.Lng)
-			if err != nil {
-				log.Printf("OpenWeatherMap fetch failed, falling back to stub: %v", err)
-			} else {
-				res = *live
-			}
-		}
+		res := CheckSafety(client, req.Lat, req.Lng)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(res)
 	}
+}
+
+// CheckSafety returns live weather data via client when non-nil, falling
+// back to the deterministic stub on a nil client or a live-fetch error.
+// Exported so callers outside an HTTP handler (e.g. the gateway's in-flight
+// telemetry loop, which needs the same real-vs-stub behavior to raise
+// WEATHER_BREACH alerts) can reuse the exact same logic.
+func CheckSafety(client *Client, lat, lng float64) WeatherResponse {
+	if client != nil {
+		if live, err := client.FetchCurrent(lat, lng); err != nil {
+			log.Printf("OpenWeatherMap fetch failed, falling back to stub: %v", err)
+		} else {
+			return *live
+		}
+	}
+	return stubWeather(lat)
 }
 
 // stubWeather is the deterministic dev/CI fallback (AD-6 coordinate rules

@@ -136,7 +136,7 @@ func TestHandleWeatherCheckFallsBackToStubOnFetchError(t *testing.T) {
 
 	client := NewClient("test-key")
 	client.baseURL = owm.URL
-	handler := newHandler(client)
+	handler := NewHandlerWithClient(client)
 
 	reqBody, _ := json.Marshal(WeatherRequest{Lat: 10.762622, Lng: 106.660172})
 	req := httptest.NewRequest("POST", "/api/operator/weather", bytes.NewBuffer(reqBody))
