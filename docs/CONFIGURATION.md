@@ -8,10 +8,11 @@ Environment variables the running system reads today, plus what will be needed o
 |---|---|---|
 | `PORT` | Gateway HTTP listen port | `8080` |
 | `SUGGESTION_ENGINE_URL` | Base URL of the Python suggestion/planner service | `http://localhost:50051` |
-| `JWT_SECRET` | HMAC signing key for session JWTs | insecure dev fallback string — **must** be overridden outside local dev |
-| `SKIP_OIDC_INIT` | When `"true"`, skips real OIDC discovery at startup (dev/CI bypass) | unset (OIDC init attempted) |
-| `OIDC_ISSUER_URL` | SSO provider issuer URL | `http://localhost:8080/realms/uss-surveillance` (placeholder, not a real IdP) |
-| `OIDC_CLIENT_ID` | SSO client ID | `uss-surveillance-client` (placeholder) |
+| `FRONTEND_URL` | Where the browser is redirected after login (mock or real OIDC), carrying the issued token/user/role as query params | `http://localhost:5173` (Vite dev server) |
+| `JWT_SECRET` | HMAC signing key for session JWTs | Only defaults to an insecure dev key in mock mode (see `SKIP_OIDC_INIT`/`OIDC_ISSUER_URL` below) — **required** (gateway refuses to start without it) whenever `OIDC_ISSUER_URL` is set |
+| `SKIP_OIDC_INIT` | When `"true"`, explicitly forces mock-mode auth (unauthenticated "operator" login) regardless of `OIDC_ISSUER_URL` | unset |
+| `OIDC_ISSUER_URL` | SSO provider issuer URL | unset — leaving this unset is what puts the gateway into mock mode for local dev/CI. If it **is** set and OIDC initialization fails, the gateway refuses to start rather than silently falling back to mock mode (set `SKIP_OIDC_INIT=true` if that's actually what you want) |
+| `OIDC_CLIENT_ID` | SSO client ID | required once `OIDC_ISSUER_URL` is set |
 | `OIDC_CLIENT_SECRET` | SSO client secret | none — required once a real IdP is wired in |
 | `OIDC_REDIRECT_URI` | OAuth2 callback URL | none |
 | `REDIS_URL` | Redis connection string (e.g. `redis://redis:6379`) for the operator control lease mutex (`backend/pkg/lease.RedisManager`) | unset — falls back to an in-process, single-instance lease manager. Set this for any multi-instance gateway deployment. |

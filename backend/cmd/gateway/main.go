@@ -266,30 +266,44 @@ func main() {
 	redirectURL := os.Getenv("OIDC_REDIRECT_URI")
 	jwtSecret := os.Getenv("JWT_SECRET")
 
-	// Set fallback defaults for development ease
-	if issuerURL == "" {
-		issuerURL = "http://localhost:8080/realms/uss-surveillance"
-	}
-	if clientID == "" {
-		clientID = "uss-surveillance-client"
-	}
-	if jwtSecret == "" {
-		jwtSecret = "development-secret-key-that-is-long-enough-32-chars"
-	}
+	// Mock mode (unauthenticated "operator-dev" login, see
+	// auth.HandleLogin) is only entered when explicitly requested via
+	// SKIP_OIDC_INIT, or when no real IdP is configured at all - the
+	// local-dev/CI default. If OIDC_ISSUER_URL IS set (real SSO intended)
+	// but initialization fails, that's a misconfiguration and must fail
+	// loudly: silently falling back to mock mode would mean any
+	// environment that forgets to set this correctly starts serving
+	// anyone an authenticated "operator" session for free.
+	mockMode := os.Getenv("SKIP_OIDC_INIT") == "true" || issuerURL == ""
 
-	// Initialize OIDC client (can be skipped for unit tests via env flag)
 	var oidcClient *auth.OIDCClient
-	var err error
-	if os.Getenv("SKIP_OIDC_INIT") != "true" {
+	if !mockMode {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		oidcClient, err = auth.NewOIDCClient(ctx, issuerURL, clientID, clientSecret, redirectURL)
+		client, err := auth.NewOIDCClient(ctx, issuerURL, clientID, clientSecret, redirectURL)
 		if err != nil {
-			log.Printf("OIDC initialization delayed: %v. Running in mock mode.", err)
+			log.Fatalf("OIDC_ISSUER_URL=%s is configured but initialization failed: %v. "+
+				"Refusing to start with an unintended mock-auth fallback - if mock mode is "+
+				"actually what you want, set SKIP_OIDC_INIT=true explicitly.", issuerURL, err)
 		}
+		oidcClient = client
 	}
 
-	authHandlers := auth.NewAuthHandlers(oidcClient, jwtSecret)
+	if mockMode {
+		log.Println("AUTH: no real OIDC provider configured - running in MOCK MODE. " +
+			"/api/auth/login issues an unauthenticated 'operator' session to anyone who requests it. Do not use this in production.")
+		if jwtSecret == "" {
+			jwtSecret = "development-secret-key-that-is-long-enough-32-chars"
+		}
+	} else if jwtSecret == "" {
+		log.Fatalf("JWT_SECRET must be set when OIDC_ISSUER_URL is configured - refusing to start with the implicit development signing key against a real identity provider.")
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
+	}
+	authHandlers := auth.NewAuthHandlers(oidcClient, jwtSecret, frontendURL)
 
 	mux := http.NewServeMux()
 

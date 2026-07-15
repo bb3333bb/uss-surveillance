@@ -4,23 +4,36 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"net/http"
 	"time"
 )
 
 // AuthHandlers aggregates OIDC clients and JWT configurations.
 type AuthHandlers struct {
-	oidcClient *OIDCClient
-	jwtSecret  string
+	oidcClient  *OIDCClient
+	jwtSecret   string
+	frontendURL string
 }
 
 // NewAuthHandlers instantiates OIDC and JWT HTTP handler functions.
-func NewAuthHandlers(oidcClient *OIDCClient, jwtSecret string) *AuthHandlers {
+// frontendURL is where the browser is redirected back to after both the
+// mock-mode and real-OIDC login flows, carrying the issued token/user/role
+// as query params (see AuthContext.jsx's callback parsing).
+func NewAuthHandlers(oidcClient *OIDCClient, jwtSecret string, frontendURL string) *AuthHandlers {
 	return &AuthHandlers{
-		oidcClient: oidcClient,
-		jwtSecret:  jwtSecret,
+		oidcClient:  oidcClient,
+		jwtSecret:   jwtSecret,
+		frontendURL: frontendURL,
 	}
+}
+
+// redirectToFrontend sends the browser back to the SPA with the issued
+// session encoded as query params, matching AuthContext.jsx's expected
+// shape. Used by both the mock-mode login and the real OIDC callback so
+// there's exactly one place this format is defined.
+func (h *AuthHandlers) redirectToFrontend(w http.ResponseWriter, r *http.Request, token, username, role string) {
+	redirectURL := h.frontendURL + "/?token=" + token + "&user=" + username + "&role=" + role
+	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
 
 // HandleLogin generates OAuth state cookies and redirects users to OIDC provider login.
@@ -38,10 +51,8 @@ func (h *AuthHandlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(`{"code": "INTERNAL_ERROR", "message": "Failed to sign mock token"}`))
 			return
 		}
-		
-		// Redirect back to frontend dev server with query parameters
-		redirectURL := "http://localhost:5173/?token=" + tokenString + "&user=" + userClaims.Username + "&role=" + userClaims.Roles[0]
-		http.Redirect(w, r, redirectURL, http.StatusFound)
+
+		h.redirectToFrontend(w, r, tokenString, userClaims.Username, userClaims.Roles[0])
 		return
 	}
 
@@ -138,12 +149,8 @@ func (h *AuthHandlers) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Return token response
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"token": tokenString,
-		"role":  roles[0],
-		"user":  username,
-	})
+	// The browser reached this endpoint via a top-level navigation from the
+	// IdP, not an XHR/fetch call - it must be redirected back to the SPA
+	// with the token, not sent a JSON body nobody on the frontend reads.
+	h.redirectToFrontend(w, r, tokenString, username, roles[0])
 }
