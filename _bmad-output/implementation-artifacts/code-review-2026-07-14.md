@@ -3,17 +3,17 @@
 **Date:** 2026-07-14
 **Method:** Adapted from `.claude/commands/BMad/tasks/review-story.md` (the full BMad QA-gate workflow needs `.bmad-core/` config that isn't vendored into this repo — see README.md — so this substitutes a direct acceptance-criteria-vs-code review, written up per story, without the gate YAML/quality-score machinery). Each epic was reviewed by an independent agent against the actual current code, not against story-file checkboxes or `sprint-status.yaml`, both of which were found to be stale in places (see notes below).
 
-Nothing was fixed as part of this review pass — this is findings only. See the end of this doc for what actually happened next.
+Nothing was fixed as part of the initial review pass — that was findings only. Items 1-5 below were fixed the same day; see the "Fixed 2026-07-14" note on each.
 
 ## Severity-ranked findings
 
 ### Critical — misrepresents safety-critical state to the operator
 
-1. **"Pause Flight" is a no-op.** `commandHandler` (`backend/cmd/gateway/main.go`) publishes MQTT `hover`, but nothing subscribes to it and the handler's own state-mutation block only branches on `rth`. The drone keeps flying after an operator holds Pause for 1.5s and the UI reports success. (Story 3.4)
-2. **`WEATHER_BREACH_WIND`/`WEATHER_BREACH_RAIN` alerts are fake.** They fire off `lat > 10.77`, completely disconnected from `backend/pkg/weather`. Presented to the operator as a weather-driven safety alert; it isn't. (Story 3.6)
-3. **NFZ/geofence check only inspects the drawn boundary's vertices**, never the generated flight path's interior or edges. A polygon whose vertices sit outside the 800m radius but whose edge clips through it is accepted as safe. (Story 2.4)
-4. **The suggestion engine (FR-5) is a fully static stub.** Ignores battery, lock state, and the actual request coordinates; always returns the same drone/dock. Not "state-based recommendation" in any real sense. (Story 2.3)
-5. **Live weather safety check ignores precipitation.** Only wind speed feeds `Safe`; a live report of heavy rain/thunderstorm with acceptable wind is marked safe, contradicting the stated "wind OR heavy precipitation" requirement. (Story 2.2)
+1. ~~**"Pause Flight" is a no-op.**~~ **Fixed 2026-07-14** (`0da05f6`). `commandHandler` (`backend/cmd/gateway/main.go`) published MQTT `hover`, but nothing subscribed to it and the handler's own state-mutation block only branched on `rth`. The drone kept flying after an operator held Pause for 1.5s and the UI reported success. Added `IsPaused` to `DroneTelemetryState`; the ticker now holds position/altitude, zeroes speed, and skips path advancement while paused. Also fixed the heartbeat watchdog's disconnect handler, which had the same bug from the other direction (cleared `IsFlying` instead of pausing, snapping the position back to the dock). (Story 3.4)
+2. ~~**`WEATHER_BREACH_WIND`/`WEATHER_BREACH_RAIN` alerts are fake.**~~ **Fixed 2026-07-14** (`a4c51f6`). They fired off `lat > 10.77`, completely disconnected from `backend/pkg/weather`. Now the telemetry ticker polls real (or stub) weather at the drone's current position every 30 ticks while flying, and the alerts derive from actual wind speed / precipitation. (Story 3.6)
+3. ~~**NFZ/geofence check only inspects the drawn boundary's vertices.**~~ **Fixed 2026-07-14** (`28c53dc`). Replaced the vertex-only loop with `polygon_intersects_restricted_zone()`, which checks the minimum distance from the NFZ center to every polygon *edge* (point-to-segment distance in a local flat-earth projection), geometrically superseding the old check rather than adding a redundant one. (Story 2.4)
+4. ~~**The suggestion engine (FR-5) is a fully static stub.**~~ **Fixed 2026-07-14** (`554832a`). Since only one drone/hub is modeled, true multi-drone selection isn't meaningful - `applyFleetReadiness()` in the Go gateway now overlays Drone-01's real readiness (in-flight, locked by another operator, low battery) onto the suggestion response after the Python engine's geographic allocation comes back. (Story 2.3)
+5. ~~**Live weather safety check ignores precipitation.**~~ **Fixed 2026-07-14** (`804448b`). Only wind speed fed `Safe`. Rain/Thunderstorm/Snow now also block; light Drizzle doesn't. (Story 2.2)
 6. **Hardcoded default `JWT_SECRET` committed to source**, combined with an implicit, undocumented mock-auth fallback: any environment where `OIDC_ISSUER_URL` is unset or the IdP is briefly unreachable at boot silently serves an unauthenticated "operator" JWT to anyone hitting `/api/auth/login`, signed with a secret visible in the repo. No explicit `AUTH_MOCK_MODE` flag gates this. (Story 1.1)
 7. **Real OIDC callback flow is broken.** `HandleCallback` writes a raw JSON body instead of redirecting back to the frontend with the token — only the mock-mode branch in `HandleLogin` actually works today. This means the SSO flow the epic is named after cannot complete end-to-end once a real IdP is configured, and nothing currently exercises that path to catch it. (Story 1.1)
 8. **Hub-doors telemetry state is inaccurate for the entire duration of a flight.** Never set on launch (stays `"closed"` while the drone is airborne) and never resets out of `"recharging"` afterward. (Stories 3.1, 3.5)
@@ -56,17 +56,17 @@ Two items marked `open` in `sprint-status.yaml` are actually done in code (Redis
 | 1.2 Base 3-Column Dashboard Layout & Themes | Partially Done |
 | 1.3 Role-Based Access Control Enforcer | Partially Done |
 | 2.1 Polygon Drawing on 2D Map View | Done |
-| 2.2 Automated Weather and Wind Assessment | Needs Fixes |
-| 2.3 Fleet State Suggestion Engine | Needs Fixes |
-| 2.4 Flight Path Grid Generator & Geofence Guard | Needs Fixes |
+| 2.2 Automated Weather and Wind Assessment | Needs Fixes → precipitation gap fixed (`804448b`); rest of the AC still holds |
+| 2.3 Fleet State Suggestion Engine | Needs Fixes → battery/lock-state gap fixed (`554832a`); gRPC-vs-REST transport mismatch still stands |
+| 2.4 Flight Path Grid Generator & Geofence Guard | Needs Fixes → NFZ edge-check gap fixed (`28c53dc`); FR-6 FOV spacing and FR-8 terrain clearance still absent |
 | 3.1 Hub Interlock & Takeoff Sequence | Partially Done |
 | 3.2 1Hz Telemetry & Operator Mutex Lease | Needs Fixes |
 | 3.3 WebRTC Video Stream Transcoding | Needs Fixes (placeholder) |
-| 3.4 Manual Override Long-Press Controls | Needs Fixes |
+| 3.4 Manual Override Long-Press Controls | Needs Fixes → Pause no-op fixed (`0da05f6`); no `Land` command still missing |
 | 3.5 Automatic Landing & Recharging | Partially Done |
-| 3.6 Safety Alert HUD Indicator | Needs Fixes |
+| 3.6 Safety Alert HUD Indicator | Needs Fixes → fake weather-breach trigger fixed (`a4c51f6`); missing flash animations still unaddressed |
 | 4.1 Synced Data Archiving | Partially Done |
 | 4.2 Mission History Dashboard | Partially Done / Needs Fixes |
 | 4.3 Interactive Timeline Scrubber & Map Sync | Partially Done / Needs Fixes |
 
-None moved to "done" as part of this pass — see sprint-status.yaml, left unchanged pending a decision on what to fix first.
+The 5 critical, safety-misrepresenting bugs (items 1-5 above) were fixed the same day as this review, each verified with new automated tests plus a live end-to-end run against the real gateway. No story was moved to "done" in `sprint-status.yaml` - each still has other, less severe gaps noted in this doc that remain open.
